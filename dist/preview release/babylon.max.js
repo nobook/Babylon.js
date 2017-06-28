@@ -32583,7 +32583,7 @@ var BABYLON;
             this.angularSensibilityX = 1000.0;
             this.angularSensibilityY = 1000.0;
             this.pinchPrecision = 6.0;
-            this.panningSensibility = 50.0;
+            this.panningSensibility = 150.0;
             this._isPanClick = false;
             this.pinchInwards = true;
         }
@@ -32642,6 +32642,9 @@ var BABYLON;
                     if (!noPreventDefault) {
                         evt.preventDefault();
                     }
+                    // update panning Sensibility
+                    var angle = 1 / Math.tan(_this.camera.fov); //// this.camera.fov;
+                    var distance = BABYLON.Vector3.Distance(_this.camera.getTarget(), _this.camera.position);
                     // One button down
                     if (pointA && pointB === undefined) {
                         if (_this.panningSensibility !== 0 &&
@@ -32661,7 +32664,11 @@ var BABYLON;
                         cacheSoloPointer.x = evt.clientX;
                         cacheSoloPointer.y = evt.clientY;
                     }
-                    else if (pointA && pointB) {
+                    else if (pointA && pointB && pointA.pointerId) {
+                        if (pointA.pointerId === pointB.pointerId) {
+                            pointB = undefined;
+                            return;
+                        }
                         //if (noPreventDefault) { evt.preventDefault(); } //if pinch gesture, could be useful to force preventDefault to avoid html page scroll/zoom in some mobile browsers
                         var ed = (pointA.pointerId === evt.pointerId) ? pointA : pointB;
                         ed.x = evt.clientX;

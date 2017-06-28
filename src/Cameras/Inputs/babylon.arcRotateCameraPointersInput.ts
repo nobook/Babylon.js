@@ -17,7 +17,7 @@ module BABYLON {
         public pinchPrecision = 6.0;
 
         @serialize()
-        public panningSensibility: number = 50.0;
+        public panningSensibility: number = 150.0;
 
         private _isPanClick: boolean = false;
         public pinchInwards = true;
@@ -90,7 +90,9 @@ module BABYLON {
                     if (!noPreventDefault) {
                         evt.preventDefault();
                     }
-
+                    // update panning Sensibility
+                    var angle = 1 / Math.tan(this.camera.fov);//// this.camera.fov;
+                    var distance = BABYLON.Vector3.Distance(this.camera.getTarget(), this.camera.position);
                     // One button down
                     if (pointA && pointB === undefined) {
                         if (this.panningSensibility !== 0 &&
@@ -112,7 +114,11 @@ module BABYLON {
                     }
 
                     // Two buttons down: pinch
-                    else if (pointA && pointB) {
+                    else if (pointA && pointB && pointA.pointerId) {
+                        if (pointA.pointerId === pointB.pointerId) {
+                            pointB = undefined;
+                            return;
+                        }
                         //if (noPreventDefault) { evt.preventDefault(); } //if pinch gesture, could be useful to force preventDefault to avoid html page scroll/zoom in some mobile browsers
                         var ed = (pointA.pointerId === evt.pointerId) ? pointA : pointB;
                         ed.x = evt.clientX;
