@@ -32586,6 +32586,7 @@ var BABYLON;
             this.panningSensibility = 150.0;
             this._isPanClick = false;
             this.pinchInwards = true;
+            this.points = {};
         }
         ArcRotateCameraPointersInput.prototype.attachControl = function (element, noPreventDefault) {
             var _this = this;
@@ -32599,6 +32600,14 @@ var BABYLON;
                     return;
                 }
                 if (p.type === BABYLON.PointerEventTypes.POINTERDOWN) {
+                    if (_this.getSizeOfPoints() === 0) {
+                        window.addEventListener('touchend', _this.onTouchUp);
+                        window.addEventListener('pointerup', _this.onPointerUp);
+                    }
+                    var id = evt.pointerId || evt.identifier;
+                    if (id) {
+                        _this.points[id] = evt;
+                    }
                     try {
                         evt.srcElement.setPointerCapture(evt.pointerId);
                     }
@@ -32669,25 +32678,41 @@ var BABYLON;
                             pointB = undefined;
                             return;
                         }
-                        //if (noPreventDefault) { evt.preventDefault(); } //if pinch gesture, could be useful to force preventDefault to avoid html page scroll/zoom in some mobile browsers
-                        var ed = (pointA.pointerId === evt.pointerId) ? pointA : pointB;
-                        ed.x = evt.clientX;
-                        ed.y = evt.clientY;
-                        var direction = _this.pinchInwards ? 1 : -1;
-                        var distX = pointA.x - pointB.x;
-                        var distY = pointA.y - pointB.y;
-                        var pinchSquaredDistance = (distX * distX) + (distY * distY);
-                        if (previousPinchDistance === 0) {
-                            previousPinchDistance = pinchSquaredDistance;
-                            return;
+                        // 大于两个点的情况
+                        if (_this.getSizeOfPoints() > 2) {
+                            var id = evt.pointerId || evt.identifier;
+                            if (cacheSoloPointer.pointerId === id) {
+                                _this.camera.inertialPanningX += -(evt.clientX - cacheSoloPointer.x) / _this.panningSensibility;
+                                _this.camera.inertialPanningY += (evt.clientY - cacheSoloPointer.y) / _this.panningSensibility;
+                                cacheSoloPointer.x = evt.clientX;
+                                cacheSoloPointer.y = evt.clientY;
+                            }
                         }
-                        if (pinchSquaredDistance !== previousPinchDistance) {
-                            _this.camera
-                                .inertialRadiusOffset += (pinchSquaredDistance - previousPinchDistance) /
-                                (_this.pinchPrecision *
-                                    ((_this.angularSensibilityX + _this.angularSensibilityY) / 2) *
-                                    direction);
-                            previousPinchDistance = pinchSquaredDistance;
+                        else if (_this.getSizeOfPoints() === 2) {
+                            //if (noPreventDefault) { evt.preventDefault(); } //if pinch gesture, could be useful to force preventDefault to avoid html page scroll/zoom in some mobile browsers
+                            var ed = (pointA.pointerId === evt.pointerId) ? pointA : pointB;
+                            ed.x = evt.clientX;
+                            ed.y = evt.clientY;
+                            var direction = _this.pinchInwards ? 1 : -1;
+                            var distX = pointA.x - pointB.x;
+                            var distY = pointA.y - pointB.y;
+                            var pinchSquaredDistance = (distX * distX) + (distY * distY);
+                            if (previousPinchDistance === 0) {
+                                previousPinchDistance = pinchSquaredDistance;
+                                return;
+                            }
+                            if (pinchSquaredDistance !== previousPinchDistance) {
+                                _this.camera
+                                    .inertialRadiusOffset += (pinchSquaredDistance - previousPinchDistance) /
+                                    (_this.pinchPrecision *
+                                        ((_this.angularSensibilityX + _this.angularSensibilityY) / 2) *
+                                        direction);
+                                previousPinchDistance = pinchSquaredDistance;
+                            }
+                        }
+                        else {
+                            pointA = { x: evt.clientX, y: evt.clientY, pointerId: evt.pointerId, type: evt.pointerType };
+                            pointB = undefined;
                         }
                     }
                 }
@@ -32699,6 +32724,17 @@ var BABYLON;
             if (!this.camera._useCtrlForPanning) {
                 element.addEventListener("contextmenu", this._onContextMenu, false);
             }
+            this.onTouchUp = function (evt) {
+                for (var i = 0; i < evt.changedTouches.length; i++) {
+                    var e = evt.changedTouches[i];
+                    var id = e.pointerId || e.identifier;
+                    delete _this.points[id];
+                }
+            };
+            this.onPointerUp = function (evt) {
+                var id = evt.pointerId;
+                delete _this.points[id];
+            };
             this._onLostFocus = function () {
                 //this._keys = [];
                 pointA = pointB = undefined;
@@ -32763,6 +32799,13 @@ var BABYLON;
             BABYLON.Tools.UnregisterTopRootEvents([
                 { name: "blur", handler: this._onLostFocus }
             ]);
+        };
+        ArcRotateCameraPointersInput.prototype.getSizeOfPoints = function () {
+            var count = 0;
+            for (var prop in this.points) {
+                count++;
+            }
+            return count;
         };
         ArcRotateCameraPointersInput.prototype.getTypeName = function () {
             return "ArcRotateCameraPointersInput";

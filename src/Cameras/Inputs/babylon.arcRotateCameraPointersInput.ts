@@ -22,6 +22,9 @@ module BABYLON {
         private _isPanClick: boolean = false;
         public pinchInwards = true;
 
+        private points:any = {};
+        private onTouchUp: (e:TouchEvent) => void;
+
         private _pointerInput: (p: PointerInfo, s: EventState) => void;
         private _observer: Observer<PointerInfo>;
         private _onMouseMove: (e: MouseEvent) => any;
@@ -45,12 +48,21 @@ module BABYLON {
                 }
 
                 if (p.type === PointerEventTypes.POINTERDOWN) {
+
+                    if (this.getSizeOfPoints() === 0) { ,
+                        window.addEventListener('touchend', this.onTouchUp);
+                        window.addEventListener('pointerup', this.onPointerUp);
+                    }
+                    var id = (evt as any).pointerId || (evt as any).identifier;
+                    if (id) {
+                        this.points[id] = evt;
+                    }
+
                     try {
                         evt.srcElement.setPointerCapture(evt.pointerId);
                     } catch (e) {
                         //Nothing to do with the error. Execution will continue.
                     }
-
 
                     // Manage panning with pan button click
                     this._isPanClick = evt.button === this.camera._panningMouseButton;
@@ -119,26 +131,40 @@ module BABYLON {
                             pointB = undefined;
                             return;
                         }
-                        //if (noPreventDefault) { evt.preventDefault(); } //if pinch gesture, could be useful to force preventDefault to avoid html page scroll/zoom in some mobile browsers
-                        var ed = (pointA.pointerId === evt.pointerId) ? pointA : pointB;
-                        ed.x = evt.clientX;
-                        ed.y = evt.clientY;
-                        var direction = this.pinchInwards ? 1 : -1;
-                        var distX = pointA.x - pointB.x;
-                        var distY = pointA.y - pointB.y;
-                        var pinchSquaredDistance = (distX * distX) + (distY * distY);
-                        if (previousPinchDistance === 0) {
-                            previousPinchDistance = pinchSquaredDistance;
-                            return;
-                        }
+                        // 大于两个点的情况
+                        if (this.getSizeOfPoints() > 2) {
+                            var id = (evt as any).pointerId || (evt as any).identifier;
+                            if (cacheSoloPointer.pointerId === id) {
+                                this.camera.inertialPanningX += -(evt.clientX - cacheSoloPointer.x) / this.panningSensibility;
+                                this.camera.inertialPanningY += (evt.clientY - cacheSoloPointer.y) / this.panningSensibility;
+                                cacheSoloPointer.x = evt.clientX;
+                                cacheSoloPointer.y = evt.clientY;
+                            }
+                        } else if (this.getSizeOfPoints() === 2) {
+                            //if (noPreventDefault) { evt.preventDefault(); } //if pinch gesture, could be useful to force preventDefault to avoid html page scroll/zoom in some mobile browsers
+                            var ed = (pointA.pointerId === evt.pointerId) ? pointA : pointB;
+                            ed.x = evt.clientX;
+                            ed.y = evt.clientY;
+                            var direction = this.pinchInwards ? 1 : -1;
+                            var distX = pointA.x - pointB.x;
+                            var distY = pointA.y - pointB.y;
+                            var pinchSquaredDistance = (distX * distX) + (distY * distY);
+                            if (previousPinchDistance === 0) {
+                                previousPinchDistance = pinchSquaredDistance;
+                                return;
+                            }
 
-                        if (pinchSquaredDistance !== previousPinchDistance) {
-                            this.camera
-                                .inertialRadiusOffset += (pinchSquaredDistance - previousPinchDistance) /
-                                (this.pinchPrecision *
+                            if (pinchSquaredDistance !== previousPinchDistance) {
+                                this.camera
+                                    .inertialRadiusOffset += (pinchSquaredDistance - previousPinchDistance) /
+                                    (this.pinchPrecision *
                                     ((this.angularSensibilityX + this.angularSensibilityY) / 2) *
                                     direction);
-                            previousPinchDistance = pinchSquaredDistance;
+                                previousPinchDistance = pinchSquaredDistance;
+                            }
+                        } else {
+                            pointA = { x: evt.clientX, y: evt.clientY, pointerId: evt.pointerId, type: evt.pointerType };
+                            pointB = undefined;
                         }
                     }
                 }
@@ -152,6 +178,19 @@ module BABYLON {
 
             if (!this.camera._useCtrlForPanning) {
                 element.addEventListener("contextmenu", this._onContextMenu, false);
+            }
+
+            this.onTouchUp = (evt:any)=> {
+                for (var i = 0; i < evt.changedTouches.length; i ++) {
+                    var e = evt.changedTouches[i];
+                    var id = e.pointerId || e.identifier;
+                    delete this.points[id];
+                }
+            };
+
+            this.onPointerUp = (evt:any)=> {
+                var id = evt.pointerId;
+                delete this.points[id];
             }
 
             this._onLostFocus = () => {
@@ -235,6 +274,14 @@ module BABYLON {
             Tools.UnregisterTopRootEvents([
                 { name: "blur", handler: this._onLostFocus }
             ]);
+        }
+
+        private getSizeOfPoints():number {
+            var count = 0;
+            for (var prop in this.points) {
+                count ++;
+            }
+            return count;
         }
 
         getTypeName(): string {
