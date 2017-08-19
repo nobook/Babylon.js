@@ -92,6 +92,7 @@
             xhr.onreadystatechange = function () {
                 if (xhr.readyState === 4) {
                     if (xhr.status === 200) {
+                        xhr.onreadystatechange = null;
                         blockEditorChange = true;
                         jsEditor.setValue(xhr.responseText);
                         jsEditor.setPosition({ lineNumber: 0, column: 0 });
@@ -142,8 +143,8 @@
                                 a.innerHTML = (index + 1) + " - " + scripts[index];
                                 a.scriptLinkIndex = index + 1;
                                 a.onclick = onScriptClick;
-                                option.scriptLinkIndex = index + 1;
-                                option.onclick = onScriptClick;
+                                // option.scriptLinkIndex = index + 1;
+                                // option.onclick = onScriptClick;
 
                                 option.appendChild(a);
 
@@ -290,6 +291,30 @@
                     return;
                 }
 
+                var showInspector = false;
+                var showDebugLayer = false;
+                var initialTabIndex = 0;
+
+                if(document.getElementsByClassName('insp-wrapper').length > 0){                  
+                    for(var i = 0; i < engine.scenes.length; i++){
+                        if(engine.scenes[i]._debugLayer){
+                            //TODO: once inspector is updated on netlify, use getActiveTabIndex instead of the following loop
+                            //initialTabIndex = engine.scenes[i]._debugLayer._inspector.getActiveTabIndex();
+                            var tabs = engine.scenes[i]._debugLayer._inspector._tabbar._tabs;
+                            for(var j = 0; j < tabs.length; j++){
+                                if(tabs[j].isActive()){
+                                    initialTabIndex = j;
+                                    break;
+                                }
+                            }
+                            break;
+                        }
+                    }
+                    showInspector = true;
+                }else if(document.getElementById('DebugLayer')){
+                    showDebugLayer = true;
+                }
+
                 if (engine) {
                     engine.dispose();
                     engine = null;
@@ -316,6 +341,7 @@
                         scene.render();
                     }
 
+                    fpsLabel.style.right = document.body.clientWidth - (jsEditor.domElement.clientWidth + canvas.clientWidth) + "px";
                     fpsLabel.innerHTML = engine.getFps().toFixed() + " fps";
                 });
 
@@ -369,6 +395,17 @@
                 engine.scenes[0].executeWhenReady(function () {
                     document.getElementById("statusBar").innerHTML = "";
                 });
+
+                if(scene){
+                    if(showInspector){
+                        scene.debugLayer.show({initialTab:initialTabIndex});
+                        scene.executeWhenReady(function(){
+                            scene.debugLayer._inspector.refresh();
+                        })
+                    }else if(showDebugLayer){
+                        scene.debugLayer.show();
+                    }
+                }
 
             } catch (e) {
                 showError(e.message, e);
@@ -585,6 +622,17 @@
                 engine.switchFullscreen(true);
             }
         }
+        var editorGoFullscreen = function () {
+            var editorDiv = document.getElementById("jsEditor");
+            if (editorDiv.requestFullscreen) {
+            editorDiv.requestFullscreen();
+            } else if (editorDiv.mozRequestFullScreen) {
+            editorDiv.mozRequestFullScreen();
+            } else if (editorDiv.webkitRequestFullscreen) {
+            editorDiv.webkitRequestFullscreen();
+            }
+
+        }
 
         var toggleEditor = function () {
             var editorButton = document.getElementById("editorButton1600");
@@ -620,7 +668,7 @@
                 vsTheme = 'vs'
             }
 
-            let oldCode = jsEditor.getValue();
+            var oldCode = jsEditor.getValue();
             jsEditor.dispose();
             jsEditor = monaco.editor.create(document.getElementById('jsEditor'), {
                 value: "",
@@ -644,7 +692,7 @@
 
             for (var index = 0; index < elementToTheme.length; index++) {
                 var obj = elementToTheme[index];
-                let domObjArr = document.querySelectorAll(obj);
+                var domObjArr = document.querySelectorAll(obj);
                 for (var domObjIndex = 0; domObjIndex < domObjArr.length; domObjIndex++) {
                     var domObj = domObjArr[domObjIndex];
                     domObj.classList.remove('light');
@@ -886,6 +934,8 @@
         setToMultipleID("editorButton", "click", toggleEditor);
         // FullScreen
         setToMultipleID("fullscreenButton", "click", goFullscreen);
+        // Editor fullScreen
+        setToMultipleID("editorFullscreenButton", "click", editorGoFullscreen);
         // Format
         setToMultipleID("formatButton", "click", formatCode);
         // Debug

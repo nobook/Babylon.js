@@ -9,6 +9,7 @@
         public _areTexturesDirty = true;
         public _areFresnelDirty = true;
         public _areMiscDirty = true;    
+        public _areImageProcessingDirty = true;  
 
         public _normals = false;
         public _uvs = false;
@@ -27,6 +28,7 @@
             this._areFresnelDirty = false;
             this._areLightsDirty = false;
             this._areMiscDirty = false;
+            this._areImageProcessingDirty = false;
         }
 
         public markAsUnprocessed() {
@@ -39,8 +41,14 @@
             this._areLightsDirty = true;
             this._areFresnelDirty = true;
             this._areMiscDirty = true;
+            this._areImageProcessingDirty = true;
             this._isDirty = true;
         }
+
+        public markAsImageProcessingDirty() {
+            this._areImageProcessingDirty = true;
+            this._isDirty = true;
+        }        
 
         public markAsLightDirty() {
             this._areLightsDirty = true;
@@ -373,9 +381,6 @@
         /**
          * Child classes can use it to update shaders         
          */
-        public markAsDirty(flag: number): void {
-
-        }
         
         public getClassName(): string {
             return "Material";
@@ -397,7 +402,7 @@
             return true;
         }
 
-        public isReadyForSubMesh(mesh: AbstractMesh, subMesh: SubMesh, useInstances?: boolean): boolean {
+        public isReadyForSubMesh(mesh: AbstractMesh, subMesh: BaseSubMesh, useInstances?: boolean): boolean {
             return false;            
         }
 
@@ -485,6 +490,14 @@
             }
         }
 
+        public getActiveTextures(): BaseTexture[] {
+            return [];
+        }
+
+        public hasTexture(texture: BaseTexture): boolean {
+            return false;
+        }
+
         public clone(name: string): Material {
             return null;
         }
@@ -502,6 +515,101 @@
 
             return result;
         }
+
+        // Force shader compilation including textures ready check
+        public forceCompilation(mesh: AbstractMesh, onCompiled: (material: Material) => void, options?: { alphaTest: boolean }): void {
+            var subMesh = new BaseSubMesh();
+            var scene = this.getScene();
+            var engine = scene.getEngine();
+
+            var beforeRenderCallback = () => {
+                if (subMesh._materialDefines) {
+                    subMesh._materialDefines._renderId = -1;
+                }
+                
+                var alphaTestState = engine.getAlphaTesting();
+                engine.setAlphaTesting(options ? options.alphaTest : this.needAlphaTesting());
+                
+                if (this.isReadyForSubMesh(mesh, subMesh)) {
+                    scene.unregisterBeforeRender(beforeRenderCallback);
+
+                    if (onCompiled) {
+                        onCompiled(this);
+                    }
+                }
+
+                engine.setAlphaTesting(alphaTestState);
+            };
+
+            scene.registerBeforeRender(beforeRenderCallback);
+        }
+       
+        public markAsDirty(flag: number): void {
+            if (flag & Material.TextureDirtyFlag) {
+                this._markAllSubMeshesAsTexturesDirty();
+            }
+
+            if (flag & Material.LightDirtyFlag) {
+                this._markAllSubMeshesAsLightsDirty();
+            }
+
+            if (flag & Material.FresnelDirtyFlag) {
+                this._markAllSubMeshesAsFresnelDirty();
+            }
+
+            if (flag & Material.AttributesDirtyFlag) {
+                this._markAllSubMeshesAsAttributesDirty();
+            }
+
+            if (flag & Material.MiscDirtyFlag) {
+                this._markAllSubMeshesAsMiscDirty();
+            }
+
+            this.getScene().resetCachedMaterial();
+        }
+
+        protected _markAllSubMeshesAsDirty(func: (defines: MaterialDefines) => void) {
+            for (var mesh of this.getScene().meshes) {
+                if (!mesh.subMeshes) {
+                    continue;
+                }
+                for (var subMesh of mesh.subMeshes) {
+                    if (subMesh.getMaterial() !== this) {
+                        continue;
+                    }
+
+                    if (!subMesh._materialDefines) {
+                        return;
+                    }
+
+                    func(subMesh._materialDefines);
+                }
+            }
+        }
+
+        protected _markAllSubMeshesAsImageProcessingDirty() {
+            this._markAllSubMeshesAsDirty(defines => defines.markAsImageProcessingDirty());
+        }        
+
+        protected _markAllSubMeshesAsTexturesDirty() {
+            this._markAllSubMeshesAsDirty(defines => defines.markAsTexturesDirty());
+        }
+
+        protected _markAllSubMeshesAsFresnelDirty() {
+            this._markAllSubMeshesAsDirty(defines => defines.markAsFresnelDirty());
+        }
+
+        protected _markAllSubMeshesAsLightsDirty() {
+            this._markAllSubMeshesAsDirty(defines => defines.markAsLightDirty());
+        }
+
+        protected _markAllSubMeshesAsAttributesDirty() {
+            this._markAllSubMeshesAsDirty(defines => defines.markAsAttributesDirty());
+        }
+
+        protected _markAllSubMeshesAsMiscDirty() {
+            this._markAllSubMeshesAsDirty(defines => defines.markAsMiscDirty());
+        }        
 
         public dispose(forceDisposeEffect?: boolean, forceDisposeTextures?: boolean): void {
             // Animations

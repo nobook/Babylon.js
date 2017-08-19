@@ -220,6 +220,19 @@ var BABYLON;
             }
             return results;
         };
+        CellMaterial.prototype.getActiveTextures = function () {
+            var activeTextures = _super.prototype.getActiveTextures.call(this);
+            if (this._diffuseTexture) {
+                activeTextures.push(this._diffuseTexture);
+            }
+            return activeTextures;
+        };
+        CellMaterial.prototype.hasTexture = function (texture) {
+            if (_super.prototype.hasTexture.call(this, texture)) {
+                return true;
+            }
+            return this._diffuseTexture === texture;
+        };
         CellMaterial.prototype.dispose = function (forceDisposeEffect) {
             if (this._diffuseTexture) {
                 this._diffuseTexture.dispose();

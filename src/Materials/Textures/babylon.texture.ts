@@ -72,7 +72,7 @@
         protected _format: number;
         private _delayedOnLoad: () => void;
         private _delayedOnError: () => void;
-        private _onLoadObservarble: Observable<boolean>;
+        private _onLoadObservable: Observable<Texture>;
 
         protected _isBlocking: boolean = true;
         public set isBlocking(value: boolean) {
@@ -98,8 +98,8 @@
             scene = this.getScene();
 
             let load = () => {
-                if (this._onLoadObservarble && this._onLoadObservarble.hasObservers()) {
-                    this.onLoadObservable.notifyObservers(true);
+                if (this._onLoadObservable && this._onLoadObservable.hasObservers()) {
+                    this.onLoadObservable.notifyObservers(this);
                 }
                 if (onLoad) {
                     onLoad();
@@ -233,6 +233,10 @@
             this._cachedTextureMatrix.m[4] = this._t2.x; this._cachedTextureMatrix.m[5] = this._t2.y; this._cachedTextureMatrix.m[6] = this._t2.z;
             this._cachedTextureMatrix.m[8] = this._t0.x; this._cachedTextureMatrix.m[9] = this._t0.y; this._cachedTextureMatrix.m[10] = this._t0.z;
 
+            this.getScene().markAllMaterialsAsDirty(Material.TextureDirtyFlag, (mat) => {
+                return mat.hasTexture(this);
+            });
+
             return this._cachedTextureMatrix;
         }
 
@@ -278,6 +282,11 @@
                     Matrix.IdentityToRef(this._cachedTextureMatrix);
                     break;
             }
+            
+            this.getScene().markAllMaterialsAsDirty(Material.TextureDirtyFlag, (mat) => {
+                return (mat.getActiveTextures().indexOf(this) !== -1);
+            });
+
             return this._cachedTextureMatrix;
         }
 
@@ -287,11 +296,11 @@
             }, this);
         }
 
-        public get onLoadObservable(): Observable<boolean> {
-            if (!this._onLoadObservarble) {
-                this._onLoadObservarble = new Observable<boolean>();
+        public get onLoadObservable(): Observable<Texture> {
+            if (!this._onLoadObservable) {
+                this._onLoadObservable = new Observable<Texture>();
             }
-            return this._onLoadObservarble;
+            return this._onLoadObservable;
         }
 
         // Statics

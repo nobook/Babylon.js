@@ -1,6 +1,6 @@
 module INSPECTOR {
 
-    export const PROPERTIES = {
+    export var PROPERTIES = {
         /** Format the given object : 
          * If a format function exists, returns the result of this function.
          * If this function doesn't exists, return the object type instead */
@@ -405,7 +405,15 @@ module INSPECTOR {
         },
         'WorldSpaceCanvas2DNode': {
             type: BABYLON.WorldSpaceCanvas2DNode
-        }
+        },
+        'PhysicsImpostor': {
+            type: BABYLON.PhysicsImpostor,
+            properties: [
+                'friction',
+                'mass',
+                'restitution',
+            ]
+        },
     }
 
 }

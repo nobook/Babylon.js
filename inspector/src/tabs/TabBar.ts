@@ -33,7 +33,10 @@ module INSPECTOR {
             this._tabs.push(new ShaderTab(this, this._inspector));
             this._tabs.push(new LightTab(this, this._inspector));
             this._tabs.push(new MaterialTab(this, this._inspector));
-
+            if(BABYLON.GUI){
+                this._tabs.push(new GUITab(this, this._inspector));
+            }
+            this._tabs.push(new PhysicsTab(this, this._inspector));
             this._tabs.push(new CameraTab(this, this._inspector));
             this._tabs.push(new SoundTab(this, this._inspector));
 
@@ -140,6 +143,15 @@ module INSPECTOR {
                     return tab;
                 }
             }
+        }
+
+        public getActiveTabIndex(): number {
+            for (let i = 0; i < this._tabs.length; i++) {
+                if(this._tabs[i].isActive()){
+                    return i;
+                }
+            }
+            return 0;
         }
 
         public get inspector(): Inspector {

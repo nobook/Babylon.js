@@ -61,11 +61,12 @@ declare module INSPECTOR {
          * Set 'firstTime' to true if there is no inspector created beforehands
          */
         openPopup(firstTime?: boolean): void;
+        getActiveTabIndex(): number;
     }
 }
 
 declare module INSPECTOR {
-    const PROPERTIES: {
+    var PROPERTIES: {
         format: (obj: any) => any;
         'type_not_defined': {
             properties: any[];
@@ -255,7 +256,18 @@ declare module INSPECTOR {
         'WorldSpaceCanvas2DNode': {
             type: typeof BABYLON.WorldSpaceCanvas2DNode;
         };
+        'PhysicsImpostor': {
+            type: typeof BABYLON.PhysicsImpostor;
+            properties: string[];
+        };
     };
+}
+
+declare module INSPECTOR {
+    /**
+     * Function that add gui objects properties to the variable PROPERTIES
+     */
+    function loadGUIProperties(): void;
 }
 
 declare module INSPECTOR {
@@ -322,6 +334,38 @@ declare module INSPECTOR {
         getProperties(): Array<PropertyLine>;
         getTools(): Array<AbstractTreeTool>;
         setPOV(): void;
+    }
+}
+
+declare module INSPECTOR {
+    class PhysicsImpostorAdapter extends Adapter implements IToolVisible {
+        private _viewer;
+        private _isVisible;
+        constructor(obj: BABYLON.PhysicsImpostor, viewer: BABYLON.Debug.PhysicsViewer);
+        /** Returns the name displayed in the tree */
+        id(): string;
+        /** Returns the type of this object - displayed in the tree */
+        type(): string;
+        /** Returns the list of properties to be displayed for this adapter */
+        getProperties(): Array<PropertyLine>;
+        getTools(): Array<AbstractTreeTool>;
+        setVisible(b: boolean): void;
+        isVisible(): boolean;
+    }
+}
+
+declare module INSPECTOR {
+    class GUIAdapter extends Adapter implements IToolVisible {
+        constructor(obj: BABYLON.GUI.Control);
+        /** Returns the name displayed in the tree */
+        id(): string;
+        /** Returns the type of this object - displayed in the tree */
+        type(): string;
+        /** Returns the list of properties to be displayed for this adapter */
+        getProperties(): Array<PropertyLine>;
+        getTools(): Array<AbstractTreeTool>;
+        setVisible(b: boolean): void;
+        isVisible(): boolean;
     }
 }
 
@@ -805,6 +849,21 @@ declare module INSPECTOR {
 }
 
 declare module INSPECTOR {
+    class GUITab extends PropertyTab {
+        constructor(tabbar: TabBar, inspector: Inspector);
+        protected _getTree(): Array<TreeItem>;
+    }
+}
+
+declare module INSPECTOR {
+    class PhysicsTab extends PropertyTab {
+        viewer: BABYLON.Debug.PhysicsViewer;
+        constructor(tabbar: TabBar, inspector: Inspector);
+        protected _getTree(): Array<TreeItem>;
+    }
+}
+
+declare module INSPECTOR {
     class SoundTab extends PropertyTab {
         constructor(tabbar: TabBar, inspector: Inspector);
         protected _getTree(): Array<TreeItem>;
@@ -973,6 +1032,7 @@ declare module INSPECTOR {
         switchMeshTab(mesh?: BABYLON.AbstractMesh): void;
         /** Returns the active tab */
         getActiveTab(): Tab;
+        getActiveTabIndex(): number;
         readonly inspector: Inspector;
         /**
          * Returns the total width in pixel of the tabbar,
@@ -1044,22 +1104,16 @@ declare module INSPECTOR {
     class LabelTool extends AbstractTool {
         /** True if label are displayed, false otherwise */
         private _isDisplayed;
-        private _canvas;
+        private _advancedTexture;
         private _labelInitialized;
         private _scene;
-        private _canvas2DLoaded;
-        private _newMeshObserver;
-        private _removedMeshObserver;
-        private _newLightObserver;
-        private _removedLightObserver;
-        private _newCameraObserver;
-        private _removedCameraObserver;
+        private _guiLoaded;
         constructor(parent: HTMLElement, inspector: Inspector);
         dispose(): void;
-        private _checkC2DLoaded();
+        private _checkGUILoaded();
         private _initializeLabels();
-        private _createLabel(node);
-        private _removeLabel(node);
+        private _createLabel(mesh);
+        private _removeLabel(mesh);
         action(): void;
     }
 }
