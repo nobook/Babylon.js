@@ -15679,6 +15679,8 @@ var BABYLON;
             this.customRenderTargets = new Array();
             // Imported meshes
             this.importedMeshesFiles = new Array();
+            // interactive canvas
+            this.interactiveCanvas = null;
             // Probes
             this.probesEnabled = true;
             this.reflectionProbes = new Array();
@@ -16657,7 +16659,7 @@ var BABYLON;
                 }
             };
             var eventPrefix = BABYLON.Tools.GetPointerPrefix();
-            var canvas = this._engine.getRenderingCanvas();
+            var canvas = this.interactiveCanvas || this._engine.getRenderingCanvas();
             if (attachMove) {
                 canvas.addEventListener(eventPrefix + "move", this._onPointerMove, false);
                 // Wheel
@@ -16676,7 +16678,7 @@ var BABYLON;
         };
         Scene.prototype.detachControl = function () {
             var eventPrefix = BABYLON.Tools.GetPointerPrefix();
-            var canvas = this._engine.getRenderingCanvas();
+            var canvas = this.interactiveCanvas || this._engine.getRenderingCanvas();
             canvas.removeEventListener(eventPrefix + "move", this._onPointerMove);
             canvas.removeEventListener(eventPrefix + "down", this._onPointerDown);
             canvas.removeEventListener(eventPrefix + "up", this._onPointerUp);
@@ -22528,51 +22530,41 @@ var BABYLON;
 
 //# sourceMappingURL=babylon.mesh.js.map
 
-
 var BABYLON;
 (function (BABYLON) {
-    var BaseSubMesh = (function () {
-        function BaseSubMesh() {
+    var SubMesh = (function () {
+        function SubMesh(materialIndex, verticesStart, verticesCount, indexStart, indexCount, mesh, renderingMesh, createBoundingBox) {
+            if (createBoundingBox === void 0) { createBoundingBox = true; }
+            this.materialIndex = materialIndex;
+            this.verticesStart = verticesStart;
+            this.verticesCount = verticesCount;
+            this.indexStart = indexStart;
+            this.indexCount = indexCount;
+            this._renderId = 0;
+            this._mesh = mesh;
+            this._renderingMesh = renderingMesh || mesh;
+            mesh.subMeshes.push(this);
+            this._trianglePlanes = [];
+            this._id = mesh.subMeshes.length - 1;
+            if (createBoundingBox) {
+                this.refreshBoundingInfo();
+                mesh.computeWorldMatrix(true);
+            }
         }
-        Object.defineProperty(BaseSubMesh.prototype, "effect", {
+        Object.defineProperty(SubMesh.prototype, "effect", {
             get: function () {
                 return this._materialEffect;
             },
             enumerable: true,
             configurable: true
         });
-        BaseSubMesh.prototype.setEffect = function (effect, defines) {
+        SubMesh.prototype.setEffect = function (effect, defines) {
             if (this._materialEffect === effect) {
                 return;
             }
             this._materialDefines = defines;
             this._materialEffect = effect;
         };
-        return BaseSubMesh;
-    }());
-    BABYLON.BaseSubMesh = BaseSubMesh;
-    var SubMesh = (function (_super) {
-        __extends(SubMesh, _super);
-        function SubMesh(materialIndex, verticesStart, verticesCount, indexStart, indexCount, mesh, renderingMesh, createBoundingBox) {
-            if (createBoundingBox === void 0) { createBoundingBox = true; }
-            var _this = _super.call(this) || this;
-            _this.materialIndex = materialIndex;
-            _this.verticesStart = verticesStart;
-            _this.verticesCount = verticesCount;
-            _this.indexStart = indexStart;
-            _this.indexCount = indexCount;
-            _this._renderId = 0;
-            _this._mesh = mesh;
-            _this._renderingMesh = renderingMesh || mesh;
-            mesh.subMeshes.push(_this);
-            _this._trianglePlanes = [];
-            _this._id = mesh.subMeshes.length - 1;
-            if (createBoundingBox) {
-                _this.refreshBoundingInfo();
-                mesh.computeWorldMatrix(true);
-            }
-            return _this;
-        }
         Object.defineProperty(SubMesh.prototype, "IsGlobal", {
             get: function () {
                 return (this.verticesStart === 0 && this.verticesCount == this._mesh.getTotalVertices());
@@ -22812,7 +22804,7 @@ var BABYLON;
             return new SubMesh(materialIndex, minVertexIndex, maxVertexIndex - minVertexIndex + 1, startIndex, indexCount, mesh, renderingMesh);
         };
         return SubMesh;
-    }(BaseSubMesh));
+    }());
     BABYLON.SubMesh = SubMesh;
 })(BABYLON || (BABYLON = {}));
 
@@ -24473,7 +24465,7 @@ var BABYLON;
         // Force shader compilation including textures ready check
         Material.prototype.forceCompilation = function (mesh, onCompiled, options) {
             var _this = this;
-            var subMesh = new BABYLON.BaseSubMesh();
+            var subMesh = new BaseSubMesh();
             var scene = this.getScene();
             var engine = scene.getEngine();
             var beforeRenderCallback = function () {
@@ -25193,6 +25185,57 @@ var BABYLON;
         PushMaterial.prototype._mustRebind = function (scene, effect, visibility) {
             if (visibility === void 0) { visibility = 0; }
             return scene.isCachedMaterialValid(this, effect, visibility);
+        };
+        PushMaterial.prototype.markAsDirty = function (flag) {
+            if (flag & BABYLON.Material.TextureDirtyFlag) {
+                this._markAllSubMeshesAsTexturesDirty();
+            }
+            if (flag & BABYLON.Material.LightDirtyFlag) {
+                this._markAllSubMeshesAsLightsDirty();
+            }
+            if (flag & BABYLON.Material.FresnelDirtyFlag) {
+                this._markAllSubMeshesAsFresnelDirty();
+            }
+            if (flag & BABYLON.Material.AttributesDirtyFlag) {
+                this._markAllSubMeshesAsAttributesDirty();
+            }
+            if (flag & BABYLON.Material.MiscDirtyFlag) {
+                this._markAllSubMeshesAsMiscDirty();
+            }
+            this.getScene().resetCachedMaterial();
+        };
+        PushMaterial.prototype._markAllSubMeshesAsDirty = function (func) {
+            for (var _i = 0, _a = this.getScene().meshes; _i < _a.length; _i++) {
+                var mesh = _a[_i];
+                if (!mesh.subMeshes) {
+                    continue;
+                }
+                for (var _b = 0, _c = mesh.subMeshes; _b < _c.length; _b++) {
+                    var subMesh = _c[_b];
+                    if (subMesh.getMaterial() !== this) {
+                        continue;
+                    }
+                    if (!subMesh._materialDefines) {
+                        return;
+                    }
+                    func(subMesh._materialDefines);
+                }
+            }
+        };
+        PushMaterial.prototype._markAllSubMeshesAsTexturesDirty = function () {
+            this._markAllSubMeshesAsDirty(function (defines) { return defines.markAsTexturesDirty(); });
+        };
+        PushMaterial.prototype._markAllSubMeshesAsFresnelDirty = function () {
+            this._markAllSubMeshesAsDirty(function (defines) { return defines.markAsFresnelDirty(); });
+        };
+        PushMaterial.prototype._markAllSubMeshesAsLightsDirty = function () {
+            this._markAllSubMeshesAsDirty(function (defines) { return defines.markAsLightDirty(); });
+        };
+        PushMaterial.prototype._markAllSubMeshesAsAttributesDirty = function () {
+            this._markAllSubMeshesAsDirty(function (defines) { return defines.markAsAttributesDirty(); });
+        };
+        PushMaterial.prototype._markAllSubMeshesAsMiscDirty = function () {
+            this._markAllSubMeshesAsDirty(function (defines) { return defines.markAsMiscDirty(); });
         };
         return PushMaterial;
     }(BABYLON.Material));
@@ -33402,9 +33445,10 @@ var BABYLON;
             this.angularSensibilityX = 1000.0;
             this.angularSensibilityY = 1000.0;
             this.pinchPrecision = 6.0;
-            this.panningSensibility = 50.0;
+            this.panningSensibility = 150.0;
             this._isPanClick = false;
             this.pinchInwards = true;
+            this.points = {};
         }
         ArcRotateCameraPointersInput.prototype.attachControl = function (element, noPreventDefault) {
             var _this = this;
@@ -33418,6 +33462,14 @@ var BABYLON;
                     return;
                 }
                 if (p.type === BABYLON.PointerEventTypes.POINTERDOWN) {
+                    if (_this.getSizeOfPoints() === 0) {
+                        window.addEventListener('touchend', _this.onTouchUp);
+                        window.addEventListener('pointerup', _this.onPointerUp);
+                    }
+                    var id = evt.pointerId || evt.identifier;
+                    if (id) {
+                        _this.points[id] = evt;
+                    }
                     try {
                         evt.srcElement.setPointerCapture(evt.pointerId);
                     }
@@ -33461,15 +33513,17 @@ var BABYLON;
                     if (!noPreventDefault) {
                         evt.preventDefault();
                     }
+                    // update panning Sensibility
+                    var angle = 1 / Math.tan(_this.camera.fov); //// this.camera.fov;
+                    var distance = BABYLON.Vector3.Distance(_this.camera.getTarget(), _this.camera.position);
+                    var _sensibility = _this.camera.viewport.width * distance / 75;
                     // One button down
                     if (pointA && pointB === undefined) {
                         if (_this.panningSensibility !== 0 &&
                             ((evt.ctrlKey && _this.camera._useCtrlForPanning) ||
                                 (!_this.camera._useCtrlForPanning && _this._isPanClick))) {
-                            _this.camera
-                                .inertialPanningX += -(evt.clientX - cacheSoloPointer.x) / _this.panningSensibility;
-                            _this.camera
-                                .inertialPanningY += (evt.clientY - cacheSoloPointer.y) / _this.panningSensibility;
+                            _this.camera.inertialPanningX += -(evt.clientX - cacheSoloPointer.x) / _this.panningSensibility * _sensibility;
+                            _this.camera.inertialPanningY += (evt.clientY - cacheSoloPointer.y) / _this.panningSensibility * _sensibility;
                         }
                         else {
                             var offsetX = evt.clientX - cacheSoloPointer.x;
@@ -33480,26 +33534,46 @@ var BABYLON;
                         cacheSoloPointer.x = evt.clientX;
                         cacheSoloPointer.y = evt.clientY;
                     }
-                    else if (pointA && pointB) {
-                        //if (noPreventDefault) { evt.preventDefault(); } //if pinch gesture, could be useful to force preventDefault to avoid html page scroll/zoom in some mobile browsers
-                        var ed = (pointA.pointerId === evt.pointerId) ? pointA : pointB;
-                        ed.x = evt.clientX;
-                        ed.y = evt.clientY;
-                        var direction = _this.pinchInwards ? 1 : -1;
-                        var distX = pointA.x - pointB.x;
-                        var distY = pointA.y - pointB.y;
-                        var pinchSquaredDistance = (distX * distX) + (distY * distY);
-                        if (previousPinchDistance === 0) {
-                            previousPinchDistance = pinchSquaredDistance;
+                    else if (pointA && pointB && pointA.pointerId) {
+                        if (pointA.pointerId === pointB.pointerId) {
+                            pointB = undefined;
                             return;
                         }
-                        if (pinchSquaredDistance !== previousPinchDistance) {
-                            _this.camera
-                                .inertialRadiusOffset += (pinchSquaredDistance - previousPinchDistance) /
-                                (_this.pinchPrecision *
-                                    ((_this.angularSensibilityX + _this.angularSensibilityY) / 2) *
-                                    direction);
-                            previousPinchDistance = pinchSquaredDistance;
+                        // 大于两个点的情况
+                        if (_this.getSizeOfPoints() > 2) {
+                            var id = evt.pointerId || evt.identifier;
+                            if (cacheSoloPointer.pointerId === id) {
+                                _this.camera.inertialPanningX += -(evt.clientX - cacheSoloPointer.x) / _this.panningSensibility * _sensibility;
+                                _this.camera.inertialPanningY += (evt.clientY - cacheSoloPointer.y) / _this.panningSensibility * _sensibility;
+                                cacheSoloPointer.x = evt.clientX;
+                                cacheSoloPointer.y = evt.clientY;
+                            }
+                        }
+                        else if (_this.getSizeOfPoints() === 2) {
+                            //if (noPreventDefault) { evt.preventDefault(); } //if pinch gesture, could be useful to force preventDefault to avoid html page scroll/zoom in some mobile browsers
+                            var ed = (pointA.pointerId === evt.pointerId) ? pointA : pointB;
+                            ed.x = evt.clientX;
+                            ed.y = evt.clientY;
+                            var direction = _this.pinchInwards ? 1 : -1;
+                            var distX = pointA.x - pointB.x;
+                            var distY = pointA.y - pointB.y;
+                            var pinchSquaredDistance = (distX * distX) + (distY * distY);
+                            if (previousPinchDistance === 0) {
+                                previousPinchDistance = pinchSquaredDistance;
+                                return;
+                            }
+                            if (pinchSquaredDistance !== previousPinchDistance) {
+                                _this.camera
+                                    .inertialRadiusOffset += (pinchSquaredDistance - previousPinchDistance) /
+                                    (_this.pinchPrecision *
+                                        ((_this.angularSensibilityX + _this.angularSensibilityY) / 2) *
+                                        direction);
+                                previousPinchDistance = pinchSquaredDistance;
+                            }
+                        }
+                        else {
+                            pointA = { x: evt.clientX, y: evt.clientY, pointerId: evt.pointerId, type: evt.pointerType };
+                            pointB = undefined;
                         }
                     }
                 }
@@ -33511,6 +33585,17 @@ var BABYLON;
             if (!this.camera._useCtrlForPanning) {
                 element.addEventListener("contextmenu", this._onContextMenu, false);
             }
+            this.onTouchUp = function (evt) {
+                for (var i = 0; i < evt.changedTouches.length; i++) {
+                    var e = evt.changedTouches[i];
+                    var id = e.pointerId || e.identifier;
+                    delete _this.points[id];
+                }
+            };
+            this.onPointerUp = function (evt) {
+                var id = evt.pointerId;
+                delete _this.points[id];
+            };
             this._onLostFocus = function () {
                 //this._keys = [];
                 pointA = pointB = undefined;
@@ -33575,6 +33660,13 @@ var BABYLON;
             BABYLON.Tools.UnregisterTopRootEvents([
                 { name: "blur", handler: this._onLostFocus }
             ]);
+        };
+        ArcRotateCameraPointersInput.prototype.getSizeOfPoints = function () {
+            var count = 0;
+            for (var prop in this.points) {
+                count++;
+            }
+            return count;
         };
         ArcRotateCameraPointersInput.prototype.getTypeName = function () {
             return "ArcRotateCameraPointersInput";
@@ -33859,10 +33951,6 @@ var BABYLON;
                 else {
                     this._target.copyFrom(pos);
                 }
-            }
-            var lockedTargetPosition = this._getLockedTargetPosition();
-            if (lockedTargetPosition) {
-                return lockedTargetPosition;
             }
             return this._target;
         };
@@ -36783,6 +36871,21 @@ var BABYLON;
             action._actionManager = this;
             action._prepare();
             return action;
+        };
+        /**
+         * Unregisters an action to this action manager
+         * @param {BABYLON.Action} action - the action to be unregistered
+         * @return {Boolean}
+         */
+        ActionManager.prototype.unregisterAction = function (action) {
+            var index = this.actions.indexOf(action);
+            if (index !== -1) {
+                this.actions.splice(index, 1);
+                ActionManager.Triggers[action.trigger] -= 1;
+                delete action._actionManager;
+                return true;
+            }
+            return false;
         };
         /**
          * Process a specific trigger
@@ -45388,11 +45491,9 @@ var BABYLON;
                 if (this._light.needCube()) {
                     if (value === ShadowGenerator.FILTER_BLUREXPONENTIALSHADOWMAP) {
                         this.useExponentialShadowMap = true;
-                        return;
                     }
                     else if (value === ShadowGenerator.FILTER_BLURCLOSEEXPONENTIALSHADOWMAP) {
                         this.useCloseExponentialShadowMap = true;
-                        return;
                     }
                 }
                 if (this._filter === value) {
@@ -47988,40 +48089,10 @@ var BABYLON;
         __extends(MultiMaterial, _super);
         function MultiMaterial(name, scene) {
             var _this = _super.call(this, name, scene, true) || this;
-            scene.multiMaterials.push(_this);
             _this.subMaterials = new Array();
+            scene.multiMaterials.push(_this);
             return _this;
         }
-        Object.defineProperty(MultiMaterial.prototype, "subMaterials", {
-            get: function () {
-                return this._subMaterials;
-            },
-            set: function (value) {
-                this._subMaterials = value;
-                this._hookArray(value);
-            },
-            enumerable: true,
-            configurable: true
-        });
-        MultiMaterial.prototype._hookArray = function (array) {
-            var _this = this;
-            var oldPush = array.push;
-            array.push = function () {
-                var items = [];
-                for (var _i = 0; _i < arguments.length; _i++) {
-                    items[_i] = arguments[_i];
-                }
-                var result = oldPush.apply(array, items);
-                _this._markAllSubMeshesAsTexturesDirty();
-                return result;
-            };
-            var oldSplice = array.splice;
-            array.splice = function (index, deleteCount) {
-                var deleted = oldSplice.apply(array, [index, deleteCount]);
-                _this._markAllSubMeshesAsTexturesDirty();
-                return deleted;
-            };
-        };
         // Properties
         MultiMaterial.prototype.getSubMaterial = function (index) {
             if (index < 0 || index >= this.subMaterials.length) {
