@@ -657,6 +657,9 @@
         // Imported meshes
         public importedMeshesFiles = new Array<String>();
 
+        // interactive canvas
+        public interactiveCanvas = null;
+
         // Probes
         public probesEnabled = true;
         public reflectionProbes = new Array<ReflectionProbe>();
@@ -1493,7 +1496,7 @@
 
 
             var eventPrefix = Tools.GetPointerPrefix();
-            var canvas = this._engine.getRenderingCanvas();
+            var canvas = this.interactiveCanvas || this._engine.getRenderingCanvas();
             if (attachMove) {
                 canvas.addEventListener(eventPrefix + "move", this._onPointerMove, false);
                 // Wheel
@@ -1517,7 +1520,7 @@
 
         public detachControl() {
             var eventPrefix = Tools.GetPointerPrefix();
-            var canvas = this._engine.getRenderingCanvas();
+            var canvas = this.interactiveCanvas || this._engine.getRenderingCanvas();
 
             canvas.removeEventListener(eventPrefix + "move", this._onPointerMove);
             canvas.removeEventListener(eventPrefix + "down", this._onPointerDown);
