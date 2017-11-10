@@ -15679,6 +15679,8 @@ var BABYLON;
             this.customRenderTargets = new Array();
             // Imported meshes
             this.importedMeshesFiles = new Array();
+            // interactive canvas
+            this.interactiveCanvas = null;
             // Probes
             this.probesEnabled = true;
             this.reflectionProbes = new Array();
@@ -16657,7 +16659,7 @@ var BABYLON;
                 }
             };
             var eventPrefix = BABYLON.Tools.GetPointerPrefix();
-            var canvas = this._engine.getRenderingCanvas();
+            var canvas = this.interactiveCanvas || this._engine.getRenderingCanvas();
             if (attachMove) {
                 canvas.addEventListener(eventPrefix + "move", this._onPointerMove, false);
                 // Wheel
@@ -16676,7 +16678,7 @@ var BABYLON;
         };
         Scene.prototype.detachControl = function () {
             var eventPrefix = BABYLON.Tools.GetPointerPrefix();
-            var canvas = this._engine.getRenderingCanvas();
+            var canvas = this.interactiveCanvas || this._engine.getRenderingCanvas();
             canvas.removeEventListener(eventPrefix + "move", this._onPointerMove);
             canvas.removeEventListener(eventPrefix + "down", this._onPointerDown);
             canvas.removeEventListener(eventPrefix + "up", this._onPointerUp);
