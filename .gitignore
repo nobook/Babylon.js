@@ -168,3 +168,4 @@ localDev/src/*
 /localDev/src/index.js
 
 /Exporters/FBX/Redist/babylon fbx tools x64/
+package-lock.json

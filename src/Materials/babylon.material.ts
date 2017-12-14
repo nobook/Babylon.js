@@ -99,7 +99,7 @@
             for (var index = 0; index < this._keys.length; index++) {
                 var prop = this._keys[index];
 
-                if (this[prop] !== other[prop]) {
+                if ((<any>this)[prop] !== (<any>other)[prop]) {
                     return false;
                 }
             }
@@ -115,7 +115,7 @@
             for (var index = 0; index < this._keys.length; index++) {
                 var prop = this._keys[index];
 
-                other[prop] = this[prop];
+                (<any>other)[prop] = (<any>this)[prop];
             }
         }
 
@@ -123,11 +123,11 @@
             for (var index = 0; index < this._keys.length; index++) {
                 var prop = this._keys[index];
 
-                if (typeof (this[prop]) === "number") {
-                    this[prop] = 0;
+                if (typeof ((<any>this)[prop]) === "number") {
+                    (<any>this)[prop] = 0;
 
                 } else {
-                    this[prop] = false;
+                    (<any>this)[prop] = false;
                 }
             }
         }
@@ -136,10 +136,10 @@
             var result = "";
             for (var index = 0; index < this._keys.length; index++) {
                 var prop = this._keys[index];
-                var value = this[prop];
+                var value = (<any>this)[prop];
 
                 if (typeof (value) === "number") {
-                    result += "#define " + prop + " " + this[prop] + "\n";
+                    result += "#define " + prop + " " + (<any>this)[prop] + "\n";
 
                 } else if (value) {
                     result += "#define " + prop + "\n";
@@ -150,7 +150,7 @@
         }
     }
 
-    export class Material {
+    export class Material implements IAnimatable {
         private static _TriangleFillMode = 0;
         private static _WireFrameFillMode = 1;
         private static _PointFillMode = 2;
@@ -246,13 +246,15 @@
 
         public storeEffectOnSubMeshes = false;
 
+        public animations: Array<Animation>;
+
         /**
         * An event triggered when the material is disposed.
         * @type {BABYLON.Observable}
         */
         public onDisposeObservable = new Observable<Material>();
 
-        private _onDisposeObserver: Observer<Material>;
+        private _onDisposeObserver: Nullable<Observer<Material>>;
         public set onDispose(callback: () => void) {
             if (this._onDisposeObserver) {
                 this.onDisposeObservable.remove(this._onDisposeObserver);
@@ -266,7 +268,7 @@
         */
         public onBindObservable = new Observable<AbstractMesh>();
 
-        private _onBindObserver: Observer<AbstractMesh>;
+        private _onBindObserver: Nullable<Observer<AbstractMesh>>;
         public set onBind(callback: (Mesh: AbstractMesh) => void) {
             if (this._onBindObserver) {
                 this.onBindObservable.remove(this._onBindObserver);
@@ -280,12 +282,42 @@
         */
         public onUnBindObservable = new Observable<Material>();
 
+        @serialize("alphaMode")
+        private _alphaMode: number = Engine.ALPHA_COMBINE;
+        public set alphaMode(value : number) {
+            if (this._alphaMode === value) {
+                return;
+            }
+            this._alphaMode = value;
+            this.markAsDirty(Material.TextureDirtyFlag);
+        }
+        public get alphaMode(): number {
+            return this._alphaMode;
+        }
 
         @serialize()
-        public alphaMode = Engine.ALPHA_COMBINE;
+        private _needDepthPrePass = false;
+        public set needDepthPrePass(value : boolean) {
+            if (this._needDepthPrePass === value) {
+                return;
+            }
+            this._needDepthPrePass = value;
+            if (this._needDepthPrePass) {
+                this.checkReadyOnEveryCall = true;
+            }
+        }
+        public get needDepthPrePass(): boolean {
+            return this._needDepthPrePass;
+        }   
 
         @serialize()
         public disableDepthWrite = false;
+
+        @serialize()
+        public forceDepthWrite = false;
+
+        @serialize()
+        public separateCullingPass = false;
 
         @serialize("fogEnabled")
         private _fogEnabled = true;
@@ -338,7 +370,7 @@
             this.markAsDirty(Material.MiscDirtyFlag);
         }
 
-        public _effect: Effect;
+        public _effect: Nullable<Effect>;
         public _wasPreviouslyReady = false;
         private _useUBO: boolean;
         private _scene: Scene;
@@ -349,7 +381,7 @@
 
         constructor(name: string, scene: Scene, doNotAdd?: boolean) {
             this.name = name;
-            this.id = name;
+            this.id = name || Tools.RandomId();
 
             this._scene = scene || Engine.LastCreatedScene;
 
@@ -360,7 +392,7 @@
             }
 
             this._uniformBuffer = new UniformBuffer(this._scene.getEngine());
-            this._useUBO = this.getScene().getEngine().webGLVersion > 1;
+            this._useUBO = this.getScene().getEngine().supportsUniformBuffers;
 
             if (!doNotAdd) {
                 this._scene.materials.push(this);
@@ -406,7 +438,7 @@
             return false;            
         }
 
-        public getEffect(): Effect {
+        public getEffect(): Nullable<Effect> {
             return this._effect;
         }
 
@@ -418,11 +450,15 @@
             return (this.alpha < 1.0);
         }
 
+        public needAlphaBlendingForMesh(mesh: AbstractMesh): boolean {
+            return this.needAlphaBlending() || (mesh.visibility < 1.0) || mesh.hasVertexAlpha;
+        }
+
         public needAlphaTesting(): boolean {
             return false;
         }
 
-        public getAlphaTestTexture(): BaseTexture {
+        public getAlphaTestTexture(): Nullable<BaseTexture> {
             return null;
         }
         
@@ -430,13 +466,16 @@
             this._wasPreviouslyReady = false;
         }
 
-        public _preBind(effect?: Effect): void {
+        public _preBind(effect?: Effect, overrideOrientation : Nullable<number> = null): boolean {
             var engine = this._scene.getEngine();
 
-            var reverse = this.sideOrientation === Material.ClockWiseSideOrientation;
+            var orientation = (overrideOrientation == null) ? this.sideOrientation : overrideOrientation;
+            var reverse = orientation === Material.ClockWiseSideOrientation;
 
             engine.enableEffect(effect ? effect : this._effect);
             engine.setState(this.backFaceCulling, this.zOffset, false, reverse);
+
+            return reverse;
         }
 
         public bind(world: Matrix, mesh?: Mesh): void {
@@ -468,10 +507,17 @@
             }
         }
 
-        protected _afterBind(mesh: Mesh): void {
+        protected _afterBind(mesh?: Mesh): void {
             this._scene._cachedMaterial = this;
+            if (mesh) {
+                this._scene._cachedVisibility = mesh.visibility;
+            } else {
+                this._scene._cachedVisibility = 1;
+            }
 
-            this.onBindObservable.notifyObservers(mesh);
+            if (mesh) {
+                this.onBindObservable.notifyObservers(mesh);
+            }
 
             if (this.disableDepthWrite) {
                 var engine = this._scene.getEngine();
@@ -498,7 +544,7 @@
             return false;
         }
 
-        public clone(name: string): Material {
+        public clone(name: string): Nullable<Material> {
             return null;
         }
 
@@ -516,32 +562,66 @@
             return result;
         }
 
-        // Force shader compilation including textures ready check
-        public forceCompilation(mesh: AbstractMesh, onCompiled: (material: Material) => void, options?: { alphaTest: boolean }): void {
+        /**
+         * Force shader compilation including textures ready check
+         */
+        public forceCompilation(mesh: AbstractMesh, onCompiled?: (material: Material) => void, options?: Partial<{ alphaTest: Nullable<boolean>, clipPlane: boolean }>): void {
+            let localOptions = {
+                alphaTest: null,
+                clipPlane: false,
+                ...options
+            };
+
             var subMesh = new BaseSubMesh();
             var scene = this.getScene();
             var engine = scene.getEngine();
 
-            var beforeRenderCallback = () => {
+            var checkReady = () => {
+                if (!this._scene || !this._scene.getEngine()) {
+                    return;
+                }
+
                 if (subMesh._materialDefines) {
                     subMesh._materialDefines._renderId = -1;
                 }
-                
-                var alphaTestState = engine.getAlphaTesting();
-                engine.setAlphaTesting(options ? options.alphaTest : this.needAlphaTesting());
-                
-                if (this.isReadyForSubMesh(mesh, subMesh)) {
-                    scene.unregisterBeforeRender(beforeRenderCallback);
 
-                    if (onCompiled) {
-                        onCompiled(this);
+                var alphaTestState = engine.getAlphaTesting();
+                var clipPlaneState = scene.clipPlane;
+
+                engine.setAlphaTesting(localOptions.alphaTest || (!this.needAlphaBlendingForMesh(mesh) && this.needAlphaTesting()));
+
+                if (localOptions.clipPlane) {
+                    scene.clipPlane = new Plane(0, 0, 0, 1);
+                }
+
+                if (this.storeEffectOnSubMeshes) {
+                    if (this.isReadyForSubMesh(mesh, subMesh)) {
+                        if (onCompiled) {
+                            onCompiled(this);
+                        }
+                    }
+                    else {
+                        setTimeout(checkReady, 16);
+                    }
+                } else {
+                    if (this.isReady(mesh)) {
+                        if (onCompiled) {
+                            onCompiled(this);
+                        }
+                    }
+                    else {
+                        setTimeout(checkReady, 16);
                     }
                 }
 
                 engine.setAlphaTesting(alphaTestState);
+
+                if (options && options.clipPlane) {
+                    scene.clipPlane = clipPlaneState;
+                }
             };
 
-            scene.registerBeforeRender(beforeRenderCallback);
+            checkReady();
         }
        
         public markAsDirty(flag: number): void {
@@ -579,7 +659,7 @@
                     }
 
                     if (!subMesh._materialDefines) {
-                        return;
+                        continue;
                     }
 
                     func(subMesh._materialDefines);
@@ -629,11 +709,14 @@
                     mesh.material = null;
                 
                     if ((<Mesh>mesh).geometry) {
-                        var geometry = (<Mesh>mesh).geometry;
+                        var geometry = <Geometry>((<Mesh>mesh).geometry);
 
                         if (this.storeEffectOnSubMeshes) {
                             for (var subMesh of mesh.subMeshes) {
                                 geometry._releaseVertexArrayObject(subMesh._materialEffect);
+                                if (forceDisposeEffect && subMesh._materialEffect) {
+                                    this._scene.getEngine()._releaseEffect(subMesh._materialEffect); 
+                                }
                             }
                         } else {
                             geometry._releaseVertexArrayObject(this._effect)
@@ -646,13 +729,9 @@
 
             // Shader are kept in cache for further use but we can get rid of this by using forceDisposeEffect
             if (forceDisposeEffect && this._effect) {
-                    if (this.storeEffectOnSubMeshes) {
-                        for (var subMesh of mesh.subMeshes) {
-                            this._scene.getEngine()._releaseEffect(subMesh._materialEffect); 
-                        }
-                    } else {
-                        this._scene.getEngine()._releaseEffect(this._effect);                    
-                    }
+                if (!this.storeEffectOnSubMeshes) {
+                    this._scene.getEngine()._releaseEffect(this._effect);                    
+                }
 
                 this._effect = null;
             }

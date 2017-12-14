@@ -4,6 +4,7 @@ var engine;
 var canvas;
 var currentScene;
 var config;
+var justOnce;
 
 var threshold = 25;
 var errorRatio = 5;
@@ -79,7 +80,7 @@ function evaluate(test, resultCanvas, result, renderImage, index, waitRing) {
     var renderData = getRenderData(canvas, engine);
     if (!test.onlyVisual) {
 
-        if (compare(renderData, resultCanvas)) { 
+        if (compare(renderData, resultCanvas)) {
             result.classList.add("failed");
             result.innerHTML = "×";
             console.log("failed");
@@ -94,14 +95,17 @@ function evaluate(test, resultCanvas, result, renderImage, index, waitRing) {
 
     currentScene.dispose();
 
-    runTest(index + 1);
+    if (!justOnce) {
+        runTest(index + 1);
+    }
 }
 
 function processCurrentScene(test, resultCanvas, result, renderImage, index, waitRing) {
     currentScene.executeWhenReady(function () {
         var renderCount = test.renderCount || 1;
 
-        engine.runRenderLoop(function() {
+        currentScene.useConstantAnimationDeltaTime = true;
+        engine.runRenderLoop(function () {
             currentScene.render();
             renderCount--;
 
@@ -114,7 +118,10 @@ function processCurrentScene(test, resultCanvas, result, renderImage, index, wai
     });
 }
 
-function runTest(index) {
+function
+
+
+runTest(index) {
     if (index >= config.tests.length) {
         return;
     }
@@ -171,6 +178,29 @@ function runTest(index) {
             currentScene = newScene;
             processCurrentScene(test, resultCanvas, result, renderImage, index, waitRing);
         });
+    }
+    else if (test.playgroundId) {
+        var snippetUrl = "//babylonjs-api2.azurewebsites.net/snippets";
+        var pgRoot = "/playground"
+        var xmlHttp = new XMLHttpRequest();
+        xmlHttp.onreadystatechange = function () {
+            if (xmlHttp.readyState === 4) {
+                if (xmlHttp.status === 200) {
+                    var snippet = JSON.parse(xmlHttp.responseText)[0];
+                    var code = JSON.parse(snippet.jsonPayload).code.toString();
+                    code = code.replace(/\/textures\//g, pgRoot + "/textures/");
+                    code = code.replace(/"textures\//g, "\"" + pgRoot + "/textures/");
+                    code = code.replace(/\/scenes\//g, pgRoot + "/scenes/");
+                    code = code.replace(/"scenes\//g, "\"" + pgRoot + "/scenes/");
+
+                    currentScene = eval(code + "\r\ncreateScene(engine)");
+                    processCurrentScene(test, resultCanvas, result, renderImage, index, waitRing);
+                }
+            }
+        }
+
+        xmlHttp.open("GET", snippetUrl + test.playgroundId.replace(/#/g, "/"));
+        xmlHttp.send();
     } else {
         // Fix references
         if (test.specificRoot) {
@@ -182,7 +212,7 @@ function runTest(index) {
 
         request.onreadystatechange = () => {
             if (request.readyState === 4) {
-                request.onreadystatechange = null; 
+                request.onreadystatechange = null;
 
                 var scriptToRun = request.responseText.replace(/..\/..\/assets\//g, config.root + "/Assets/");
                 scriptToRun = scriptToRun.replace(/..\/..\/Assets\//g, config.root + "/Assets/");
@@ -191,7 +221,7 @@ function runTest(index) {
 
                 if (test.replace) {
                     var split = test.replace.split(",");
-                    for (var i = 0; i < split.length; i+= 2) {
+                    for (var i = 0; i < split.length; i += 2) {
                         var source = split[i].trim();
                         var destination = split[i + 1].trim();
                         scriptToRun = scriptToRun.replace(source, destination);
@@ -213,7 +243,7 @@ function runTest(index) {
         };
 
         request.send(null);
-        
+
     }
 }
 
@@ -232,13 +262,23 @@ var xhr = new XMLHttpRequest();
 
 xhr.open("GET", "config.json", true);
 
-xhr.addEventListener("load",function() {
+xhr.addEventListener("load", function () {
     if (xhr.status === 200) {
 
         config = JSON.parse(xhr.responseText);
 
         // Run tests
-        runTest(0, engine);
+        var index = 0;
+        if (window.location.search) {
+            justOnce = true;
+            var title = window.location.search.replace("?", "").replace(/%20/g, " ");
+            for (var index = 0; index < config.tests.length; index++) {
+                if (config.tests[index].title === title) {
+                    break;
+                }
+            }
+        }
+        runTest(index);
 
     }
 }, false);

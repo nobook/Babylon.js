@@ -8,20 +8,21 @@
 		 * @return Generated texture
 		 */
 		public static CreateResizedCopy(texture: BABYLON.Texture, width: number, height: number, useBilinearMode: boolean = true): BABYLON.Texture {
+			
+			var scene = <Scene>texture.getScene();
+			var engine = scene.getEngine();
+			
 			let rtt = new BABYLON.RenderTargetTexture(
 				'resized' + texture.name,
 				{ width: width, height: height },
 				scene,
 				!texture.noMipmap,
 				true,
-				texture._texture.type,
+				(<InternalTexture>texture._texture).type,
 				false,
 				texture._samplingMode,
 				false
 			);
-
-            var scene = texture.getScene();
-			var engine = scene.getEngine();
 
 			rtt.wrapU = texture.wrapU;
 			rtt.wrapV = texture.wrapV;
@@ -35,7 +36,7 @@
             rtt.coordinatesIndex = texture.coordinatesIndex;
             rtt.level = texture.level;
             rtt.anisotropicFilteringLevel = texture.anisotropicFilteringLevel;
-			rtt._texture.isReady = false;
+			(<InternalTexture>rtt._texture).isReady = false;
 
 			texture.wrapU = Texture.CLAMP_ADDRESSMODE;
 			texture.wrapV = Texture.CLAMP_ADDRESSMODE;
@@ -46,13 +47,17 @@
                     effect.setTexture("textureSampler", texture);
                 }
 
-                scene.postProcessManager.directRender([passPostProcess], rtt.getInternalTexture());
+				let internalTexture = rtt.getInternalTexture();
 
-                engine.unBindFramebuffer(rtt.getInternalTexture());
-                rtt.disposeFramebufferObjects();
-				passPostProcess.dispose();
+				if (internalTexture) {
+					scene.postProcessManager.directRender([passPostProcess], internalTexture);
 
-				rtt._texture.isReady = true;
+					engine.unBindFramebuffer(internalTexture);
+					rtt.disposeFramebufferObjects();
+					passPostProcess.dispose();
+
+					internalTexture.isReady = true;
+				}
             });
 
 			return rtt;
@@ -60,7 +65,7 @@
 
 		public static GetEnvironmentBRDFTexture(scene: Scene) {
 			if (!scene._environmentBRDFTexture) {
-				var texture = new BABYLON.Texture(this._environmentBRDFBase64Texture, scene, true, false, BABYLON.Texture.BILINEAR_SAMPLINGMODE);
+				var texture = Texture.CreateFromBase64String(this._environmentBRDFBase64Texture, "EnvironmentBRDFTexture", scene, true, false, Texture.BILINEAR_SAMPLINGMODE);
 
 				texture.wrapU = Texture.CLAMP_ADDRESSMODE;
 				texture.wrapV = Texture.CLAMP_ADDRESSMODE;

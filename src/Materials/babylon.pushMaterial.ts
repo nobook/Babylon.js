@@ -36,13 +36,13 @@
             this.bindForSubMesh(world, mesh, mesh.subMeshes[0]);
         }
 
-        protected _afterBind(mesh: Mesh, effect?: Effect): void {
+        protected _afterBind(mesh: Mesh, effect: Nullable<Effect> = null): void {
             super._afterBind(mesh);
             this.getScene()._cachedEffect = effect;
         }
 
-        protected _mustRebind(scene: Scene, effect: Effect, visibility: number = 0) {
-            return scene.isCachedMaterialValid(this, effect, visibility);
+        protected _mustRebind(scene: Scene, effect: Effect, visibility: number = 1) {
+            return scene.isCachedMaterialInvalid(this, effect, visibility);
         }
 
         public markAsDirty(flag: number): void {

@@ -13,6 +13,7 @@ module BABYLON {
         EXPOSURE: boolean;
         COLORCURVES: boolean;
         COLORGRADING: boolean;
+        COLORGRADING3D: boolean;
         SAMPLER3DGREENDEPTH: boolean;
         SAMPLER3DBGRMAP: boolean;
         IMAGEPROCESSINGPOSTPROCESS: boolean;
@@ -29,7 +30,7 @@ module BABYLON {
          * Color curves setup used in the effect if colorCurvesEnabled is set to true 
          */
         @serializeAsColorCurves()
-        public colorCurves = new ColorCurves();
+        public colorCurves: Nullable<ColorCurves> = new ColorCurves();
 
         @serialize()
         private _colorCurvesEnabled = false;
@@ -55,7 +56,7 @@ module BABYLON {
          * Color grading LUT texture used in the effect if colorGradingEnabled is set to true 
          */
         @serializeAsTexture()
-        public colorGradingTexture: BaseTexture;
+        public colorGradingTexture: Nullable<BaseTexture>;
 
         @serialize()
         private _colorGradingEnabled = false;
@@ -78,7 +79,7 @@ module BABYLON {
         }
 
         @serialize()
-        private _colorGradingWithGreenDepth = false;
+        private _colorGradingWithGreenDepth = true;
         /**
          * Gets wether the color grading effect is using a green depth for the 3d Texture.
          */
@@ -98,7 +99,7 @@ module BABYLON {
         }
 
         @serialize()
-        private _colorGradingBGR = false;
+        private _colorGradingBGR = true;
         /**
          * Gets wether the color grading texture contains BGR values.
          */
@@ -274,6 +275,26 @@ module BABYLON {
             this._updateParameters();
         }
 
+        @serialize()
+        private _isEnabled = true;
+        /**
+         * Gets wether the image processing is enabled or not.
+         */
+        public get isEnabled(): boolean {
+            return this._isEnabled;
+        }
+        /**
+         * Sets wether the image processing is enabled or not.
+         */
+        public set isEnabled(value: boolean) {
+            if (this._isEnabled === value) {
+                return;
+            }
+
+            this._isEnabled = value;
+            this._updateParameters();
+        }        
+
         /**
         * An event triggered when the configuration changes and requires Shader to Update some parameters.
         * @type {BABYLON.Observable}
@@ -286,6 +307,10 @@ module BABYLON {
         protected _updateParameters(): void {
             this.onUpdateParameters.notifyObservers(this);
         }
+
+        public getClassName(): string {
+            return "ImageProcessingConfiguration";
+        }                 
 
         /**
          * Prepare the list of uniforms associated with the Image Processing effects.
@@ -327,7 +352,20 @@ module BABYLON {
          * Prepare the list of defines associated to the shader.
          * @param defines the list of defines to complete
          */
-        public prepareDefines(defines: IImageProcessingConfigurationDefines): void {
+        public prepareDefines(defines: IImageProcessingConfigurationDefines, forPostProcess: boolean = false): void {
+            if (forPostProcess !== this.applyByPostProcess || !this._isEnabled) {
+                defines.VIGNETTE = false;
+                defines.TONEMAPPING = false;
+                defines.CONTRAST = false;
+                defines.EXPOSURE = false;
+                defines.COLORCURVES = false;
+                defines.COLORGRADING = false;
+                defines.COLORGRADING3D = false;
+                defines.IMAGEPROCESSING = false;
+                defines.IMAGEPROCESSINGPOSTPROCESS = this.applyByPostProcess && this._isEnabled;
+                return;
+            }
+
             defines.VIGNETTE = this.vignetteEnabled;
             defines.VIGNETTEBLENDMODEMULTIPLY = (this.vignetteBlendMode === ImageProcessingConfiguration._VIGNETTEMODE_MULTIPLY);
             defines.VIGNETTEBLENDMODEOPAQUE = !defines.VIGNETTEBLENDMODEMULTIPLY;
@@ -336,6 +374,11 @@ module BABYLON {
             defines.EXPOSURE = (this.exposure !== 1.0);
             defines.COLORCURVES = (this.colorCurvesEnabled && !!this.colorCurves);
             defines.COLORGRADING = (this.colorGradingEnabled && !!this.colorGradingTexture);
+            if (defines.COLORGRADING) {
+                defines.COLORGRADING3D = this.colorGradingTexture!.is3D;
+            } else {
+                defines.COLORGRADING3D = false;
+            }
             defines.SAMPLER3DGREENDEPTH = this.colorGradingWithGreenDepth;
             defines.SAMPLER3DBGRMAP = this.colorGradingBGR;
             defines.IMAGEPROCESSINGPOSTPROCESS = this.applyByPostProcess;
@@ -356,7 +399,7 @@ module BABYLON {
          */
         public bind(effect: Effect, aspectRatio = 1) : void {
             // Color Curves
-            if (this._colorCurvesEnabled) {
+            if (this._colorCurvesEnabled && this.colorCurves) {
                 ColorCurves.Bind(this.colorCurves, effect);
             }
 

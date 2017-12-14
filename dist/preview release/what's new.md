@@ -1,9 +1,9 @@
-# 3.1.0:
+# 3.2.0
 
-## Core engine
+## Major updates
 
-### Major updates
- 
-### Updates
- 
-### Bug fixes
+## Updates
+
+## Bug fixes
+
+## Breaking changes

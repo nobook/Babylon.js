@@ -45,8 +45,18 @@ module BABYLON.Internals {
             var size = texture.getSize().width;
             var right = texture.readPixels(0);
             var left = texture.readPixels(1);
-            var up = texture.readPixels(2);
-            var down = texture.readPixels(3);
+
+            var up: Nullable<ArrayBufferView>;
+            var down: Nullable<ArrayBufferView>;
+            if (texture.isRenderTarget) {
+                up = texture.readPixels(3);
+                down = texture.readPixels(2);
+            }
+            else {
+                up = texture.readPixels(2);
+                down = texture.readPixels(3);
+            }
+
             var front = texture.readPixels(4);
             var back = texture.readPixels(5);
 
@@ -94,7 +104,7 @@ module BABYLON.Internals {
 
             for (var faceIndex = 0; faceIndex < 6; faceIndex++) {
                 var fileFace = this.FileFaces[faceIndex];
-                var dataArray = cubeInfo[fileFace.name];
+                var dataArray = (<any>cubeInfo)[fileFace.name];
                 var v = minUV;
 
                 // TODO: we could perform the summation directly into a SphericalPolynomial (SP), which is more efficient than SphericalHarmonic (SH).
@@ -127,9 +137,9 @@ module BABYLON.Internals {
 
                         // Handle Gamma space textures.
                         if (cubeInfo.gammaSpace) {
-                            r = Math.pow(MathTools.Clamp(r), ToLinearSpace);
-                            g = Math.pow(MathTools.Clamp(g), ToLinearSpace);
-                            b = Math.pow(MathTools.Clamp(b), ToLinearSpace);
+                            r = Math.pow(Scalar.Clamp(r), ToLinearSpace);
+                            g = Math.pow(Scalar.Clamp(g), ToLinearSpace);
+                            b = Math.pow(Scalar.Clamp(b), ToLinearSpace);
                         }
 
                         var color = new Color3(r, g, b);

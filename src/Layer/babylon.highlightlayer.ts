@@ -1,14 +1,12 @@
-﻿/// <reference path="..\PostProcess\babylon.postProcess.ts" />
-/// <reference path="..\Math\babylon.math.ts" />
-
-module BABYLON {
+﻿module BABYLON {
     /**
      * Special Glow Blur post process only blurring the alpha channel
      * It enforces keeping the most luminous color in the color channel.
      */
     class GlowBlurPostProcess extends PostProcess {
-        constructor(name: string, public direction: Vector2, public kernel: number, options: number | PostProcessOptions, camera: Camera, samplingMode: number = Texture.BILINEAR_SAMPLINGMODE, engine?: Engine, reusable?: boolean) {
+        constructor(name: string, public direction: Vector2, public kernel: number, options: number | PostProcessOptions, camera: Nullable<Camera>, samplingMode: number = Texture.BILINEAR_SAMPLINGMODE, engine?: Engine, reusable?: boolean) {
             super(name, "glowBlurPostProcess", ["screenSize", "direction", "blurWidth"], null, options, camera, samplingMode, engine, reusable);
+
             this.onApplyObservable.add((effect: Effect) => {
                 effect.setFloat2("screenSize", this.width, this.height);
                 effect.setVector2("direction", this.direction);
@@ -26,7 +24,7 @@ module BABYLON {
          * Multiplication factor apply to the canvas size to compute the render target size
          * used to generated the glowing objects (the smaller the faster).
          */
-        mainTextureRatio?: number;
+        mainTextureRatio: number;
 
         /**
          * Enforces a fixed size texture to ensure resize independant blur.
@@ -37,27 +35,27 @@ module BABYLON {
          * Multiplication factor apply to the main texture size in the first step of the blur to reduce the size 
          * of the picture to blur (the smaller the faster).
          */
-        blurTextureSizeRatio?: number;
+        blurTextureSizeRatio: number;
 
         /**
          * How big in texel of the blur texture is the vertical blur.
          */
-        blurVerticalSize?: number;
+        blurVerticalSize: number;
 
         /**
          * How big in texel of the blur texture is the horizontal blur.
          */
-        blurHorizontalSize?: number;
+        blurHorizontalSize: number;
 
         /**
          * Alpha blending mode used to apply the blur. Default is combine.
          */
-        alphaBlendingMode?: number
+        alphaBlendingMode: number
 
         /**
          * The camera attached to the layer.
          */
-        camera?: Camera;
+        camera: Nullable<Camera>;
     }
 
     /**
@@ -75,11 +73,11 @@ module BABYLON {
         /**
          * The mesh render callback use to insert stencil information
          */
-        observerHighlight: Observer<Mesh>;
+        observerHighlight: Nullable<Observer<Mesh>>;
         /**
          * The mesh render callback use to come to the default behavior
          */
-        observerDefault: Observer<Mesh>;
+        observerDefault: Nullable<Observer<Mesh>>;
         /**
          * If it exists, the emissive color of the material will be used to generate the glow.
          * Else it falls back to the current color.
@@ -98,11 +96,11 @@ module BABYLON {
         /**
          * The mesh render callback use to prevent stencil use
          */
-        beforeRender: Observer<Mesh>;
+        beforeRender: Nullable<Observer<Mesh>>;
         /**
          * The mesh render callback use to restore previous stencil use
          */
-        afterRender: Observer<Mesh>;
+        afterRender: Nullable<Observer<Mesh>>;
     }
 
     /**
@@ -133,8 +131,8 @@ module BABYLON {
         private _scene: Scene;
         private _engine: Engine;
         private _options: IHighlightLayerOptions;
-        private _vertexBuffers: { [key: string]: VertexBuffer } = {};
-        private _indexBuffer: WebGLBuffer;
+        private _vertexBuffers: { [key: string]: Nullable<VertexBuffer> } = {};
+        private _indexBuffer: Nullable<WebGLBuffer>;
         private _downSamplePostprocess: PassPostProcess;
         private _horizontalBlurPostprocess: GlowBlurPostProcess;
         private _verticalBlurPostprocess: GlowBlurPostProcess;
@@ -144,11 +142,11 @@ module BABYLON {
         private _blurTexture: RenderTargetTexture;
         private _mainTexture: RenderTargetTexture;
         private _mainTextureDesiredSize: ISize = { width: 0, height: 0 };
-        private _meshes: { [id: string]: IHighlightLayerMesh } = {};
+        private _meshes: Nullable<{ [id: string]: Nullable<IHighlightLayerMesh> }> = {};
         private _maxSize: number = 0;
         private _shouldRender = false;
         private _instanceGlowingMeshStencilReference = HighlightLayer.glowingMeshStencilReference++;
-        private _excludedMeshes: { [id: string]: IHighlightLayerExcludedMesh } = {};
+        private _excludedMeshes: Nullable<{ [id: string]: Nullable<IHighlightLayerExcludedMesh> }> = {};
 
         /**
          * Specifies whether or not the inner glow is ACTIVE in the layer.
@@ -196,7 +194,7 @@ module BABYLON {
         /**
          * Gets the camera attached to the layer.
          */
-        public get camera(): Camera {
+        public get camera(): Nullable<Camera> {
             return this._options.camera;
         }
 
@@ -262,14 +260,15 @@ module BABYLON {
 
             // Adapt options
             this._options = options || {
-                mainTextureRatio: 0.25,
+                mainTextureRatio: 0.5,
                 blurTextureSizeRatio: 0.5,
-                blurHorizontalSize: 1,
-                blurVerticalSize: 1,
-                alphaBlendingMode: Engine.ALPHA_COMBINE
+                blurHorizontalSize: 1.0,
+                blurVerticalSize: 1.0,
+                alphaBlendingMode: Engine.ALPHA_COMBINE,
+                camera: null
             };
-            this._options.mainTextureRatio = this._options.mainTextureRatio || 0.25;
-            this._options.blurTextureSizeRatio = this._options.blurTextureSizeRatio || 0.5;
+            this._options.mainTextureRatio = this._options.mainTextureRatio || 0.5;
+            this._options.blurTextureSizeRatio = this._options.blurTextureSizeRatio || 1.0;
             this._options.blurHorizontalSize = this._options.blurHorizontalSize || 1;
             this._options.blurVerticalSize = this._options.blurVerticalSize || 1;
             this._options.alphaBlendingMode = this._options.alphaBlendingMode || Engine.ALPHA_COMBINE;
@@ -284,16 +283,7 @@ module BABYLON {
             var vertexBuffer = new VertexBuffer(engine, vertices, VertexBuffer.PositionKind, false, false, 2);
             this._vertexBuffers[VertexBuffer.PositionKind] = vertexBuffer;
 
-            // Indices
-            var indices = [];
-            indices.push(0);
-            indices.push(1);
-            indices.push(2);
-            indices.push(0);
-            indices.push(2);
-            indices.push(3);
-
-            this._indexBuffer = engine.createIndexBuffer(indices);
+            this._createIndexBuffer();
 
             // Effect
             this._glowMapMergeEffect = engine.createEffect("glowMapMerge",
@@ -308,14 +298,40 @@ module BABYLON {
             this.createTextureAndPostProcesses();
         }
 
+        private _createIndexBuffer(): void {
+            var engine = this._scene.getEngine();
+
+            // Indices
+            var indices = [];
+            indices.push(0);
+            indices.push(1);
+            indices.push(2);
+
+            indices.push(0);
+            indices.push(2);
+            indices.push(3);
+
+            this._indexBuffer = engine.createIndexBuffer(indices);
+        }
+
+        public _rebuild(): void {
+            let vb = this._vertexBuffers[VertexBuffer.PositionKind];
+
+            if (vb) {
+                vb._rebuild();
+            }
+
+            this._createIndexBuffer();
+        }
+
         /**
          * Creates the render target textures and post processes used in the highlight layer.
          */
         private createTextureAndPostProcesses(): void {
             var blurTextureWidth = this._mainTextureDesiredSize.width * this._options.blurTextureSizeRatio;
             var blurTextureHeight = this._mainTextureDesiredSize.height * this._options.blurTextureSizeRatio;
-            blurTextureWidth = Tools.GetExponentOfTwo(blurTextureWidth, this._maxSize);
-            blurTextureHeight = Tools.GetExponentOfTwo(blurTextureHeight, this._maxSize);
+            blurTextureWidth = this._engine.needPOTTextures ? Tools.GetExponentOfTwo(blurTextureWidth, this._maxSize) : blurTextureWidth;
+            blurTextureHeight = this._engine.needPOTTextures ? Tools.GetExponentOfTwo(blurTextureHeight, this._maxSize) : blurTextureHeight;
 
             this._mainTexture = new RenderTargetTexture("HighlightLayerMainRTT",
                 {
@@ -333,6 +349,7 @@ module BABYLON {
             this._mainTexture.updateSamplingMode(Texture.BILINEAR_SAMPLINGMODE);
             this._mainTexture.renderParticles = false;
             this._mainTexture.renderList = null;
+            this._mainTexture.ignoreCameraViewport = true;
 
             this._blurTexture = new RenderTargetTexture("HighlightLayerBlurRTT",
                 {
@@ -348,6 +365,7 @@ module BABYLON {
             this._blurTexture.anisotropicFilteringLevel = 16;
             this._blurTexture.updateSamplingMode(Texture.TRILINEAR_SAMPLINGMODE);
             this._blurTexture.renderParticles = false;
+            this._blurTexture.ignoreCameraViewport = true;
 
             this._downSamplePostprocess = new PassPostProcess("HighlightLayerPPP", this._options.blurTextureSizeRatio,
                 null, Texture.BILINEAR_SAMPLINGMODE, this._scene.getEngine());
@@ -370,7 +388,7 @@ module BABYLON {
             }
             else {
                 this._horizontalBlurPostprocess = new BlurPostProcess("HighlightLayerHBP", new BABYLON.Vector2(1.0, 0), this._options.blurHorizontalSize, 1,
-                null, Texture.BILINEAR_SAMPLINGMODE, this._scene.getEngine());
+                    null, Texture.BILINEAR_SAMPLINGMODE, this._scene.getEngine());
                 this._horizontalBlurPostprocess.onApplyObservable.add(effect => {
                     effect.setFloat2("screenSize", blurTextureWidth, blurTextureHeight);
                 });
@@ -385,21 +403,39 @@ module BABYLON {
             this._mainTexture.onAfterUnbindObservable.add(() => {
                 this.onBeforeBlurObservable.notifyObservers(this);
 
-                this._scene.postProcessManager.directRender(
-                    [this._downSamplePostprocess, this._horizontalBlurPostprocess, this._verticalBlurPostprocess],
-                    this._blurTexture.getInternalTexture());
+                let internalTexture = this._blurTexture.getInternalTexture();
+
+                if (internalTexture) {
+                    this._scene.postProcessManager.directRender(
+                        [this._downSamplePostprocess, this._horizontalBlurPostprocess, this._verticalBlurPostprocess],
+                        internalTexture, true);
+                }
 
                 this.onAfterBlurObservable.notifyObservers(this);
             });
 
             // Custom render function
             var renderSubMesh = (subMesh: SubMesh): void => {
+                if (!this._meshes) {
+                    return;
+                }
+
+                var material = subMesh.getMaterial();
                 var mesh = subMesh.getRenderingMesh();
                 var scene = this._scene;
                 var engine = scene.getEngine();
 
+                if (!material) {
+                    return;
+                }
+
+                // Do not block in blend mode.
+                if (material.needAlphaBlendingForMesh(mesh)) {
+                    return;
+                }
+
                 // Culling
-                engine.setState(subMesh.getMaterial().backFaceCulling);
+                engine.setState(material.backFaceCulling);
 
                 // Managing instances
                 var batch = mesh._getInstancesRenderList(subMesh._id);
@@ -408,15 +444,14 @@ module BABYLON {
                 }
 
                 // Excluded Mesh
-                if (this._excludedMeshes[mesh.uniqueId]) {
+                if (this._excludedMeshes && this._excludedMeshes[mesh.uniqueId]) {
                     return;
                 };
 
                 var hardwareInstancedRendering = (engine.getCaps().instancedArrays) && (batch.visibleInstances[subMesh._id] !== null) && (batch.visibleInstances[subMesh._id] !== undefined);
 
                 var highlightLayerMesh = this._meshes[mesh.uniqueId];
-                var material = subMesh.getMaterial();
-                var emissiveTexture: Texture = null;
+                var emissiveTexture: Nullable<Texture> = null;
                 if (highlightLayerMesh && highlightLayerMesh.glowEmissiveOnly && material) {
                     emissiveTexture = (<any>material).emissiveTexture;
                 }
@@ -444,8 +479,14 @@ module BABYLON {
                     // Alpha test
                     if (material && material.needAlphaTesting()) {
                         var alphaTexture = material.getAlphaTestTexture();
-                        this._glowMapGenerationEffect.setTexture("diffuseSampler", alphaTexture);
-                        this._glowMapGenerationEffect.setMatrix("diffuseMatrix", alphaTexture.getTextureMatrix());
+                        if (alphaTexture) {
+                            this._glowMapGenerationEffect.setTexture("diffuseSampler", alphaTexture);
+                            let textureMatrix = alphaTexture.getTextureMatrix();
+
+                            if (textureMatrix) {
+                                this._glowMapGenerationEffect.setMatrix("diffuseMatrix", textureMatrix);
+                            }
+                        }
                     }
 
                     // Glow emissive only
@@ -455,7 +496,7 @@ module BABYLON {
                     }
 
                     // Bones
-                    if (mesh.useBones && mesh.computeBonesUsingShaders) {
+                    if (mesh.useBones && mesh.computeBonesUsingShaders && mesh.skeleton) {
                         this._glowMapGenerationEffect.setMatrices("mBones", mesh.skeleton.getTransformMatrices(mesh));
                     }
 
@@ -468,10 +509,20 @@ module BABYLON {
                 }
             };
 
-            this._mainTexture.customRenderFunction = (opaqueSubMeshes: SmartArray<SubMesh>, alphaTestSubMeshes: SmartArray<SubMesh>, transparentSubMeshes: SmartArray<SubMesh>): void => {
+            this._mainTexture.customRenderFunction = (opaqueSubMeshes: SmartArray<SubMesh>, alphaTestSubMeshes: SmartArray<SubMesh>, transparentSubMeshes: SmartArray<SubMesh>, depthOnlySubMeshes: SmartArray<SubMesh>): void => {
                 this.onBeforeRenderMainTextureObservable.notifyObservers(this);
 
                 var index: number;
+
+                let engine = this._scene.getEngine();
+
+                if (depthOnlySubMeshes.length) {
+                    engine.setColorWrite(false);
+                    for (index = 0; index < depthOnlySubMeshes.length; index++) {
+                        renderSubMesh(depthOnlySubMeshes.data[index]);
+                    }
+                    engine.setColorWrite(true);
+                }
 
                 for (index = 0; index < opaqueSubMeshes.length; index++) {
                     renderSubMesh(opaqueSubMeshes.data[index]);
@@ -498,8 +549,14 @@ module BABYLON {
          * @param emissiveTexture the associated emissive texture used to generate the glow
          * @return true if ready otherwise, false
          */
-        private isReady(subMesh: SubMesh, useInstances: boolean, emissiveTexture: Texture): boolean {
-            if (!subMesh.getMaterial().isReady(subMesh.getMesh(), useInstances)) {
+        private isReady(subMesh: SubMesh, useInstances: boolean, emissiveTexture: Nullable<Texture>): boolean {
+            let material = subMesh.getMaterial();
+
+            if (!material) {
+                return false;
+            }
+
+            if (!material.isReady(subMesh.getMesh(), useInstances)) {
                 return false;
             }
 
@@ -508,7 +565,6 @@ module BABYLON {
             var attribs = [VertexBuffer.PositionKind];
 
             var mesh = subMesh.getMesh();
-            var material = subMesh.getMaterial();
             var uv1 = false;
             var uv2 = false;
 
@@ -561,7 +617,7 @@ module BABYLON {
                     attribs.push(VertexBuffer.MatricesWeightsExtraKind);
                 }
                 defines.push("#define NUM_BONE_INFLUENCERS " + mesh.numBoneInfluencers);
-                defines.push("#define BonesPerMesh " + (mesh.skeleton.bones.length + 1));
+                defines.push("#define BonesPerMesh " + (mesh.skeleton ? (mesh.skeleton.bones.length + 1) : 0));
             } else {
                 defines.push("#define NUM_BONE_INFLUENCERS 0");
             }
@@ -612,7 +668,7 @@ module BABYLON {
             var previousStencilMask = engine.getStencilMask();
             var previousStencilOperationPass = engine.getStencilOperationPass();
             var previousStencilOperationFail = engine.getStencilOperationFail();
-            var previousStencilOperationDepthFail = engine.getStencilOperationDepthFail();            
+            var previousStencilOperationDepthFail = engine.getStencilOperationDepthFail();
             var previousAlphaMode = engine.getAlphaMode();
 
             // Texture
@@ -650,7 +706,7 @@ module BABYLON {
             engine.setStencilBuffer(previousStencilBuffer);
             engine.setStencilOperationPass(previousStencilOperationPass);
             engine.setStencilOperationFail(previousStencilOperationFail);
-            engine.setStencilOperationDepthFail(previousStencilOperationDepthFail);            
+            engine.setStencilOperationDepthFail(previousStencilOperationDepthFail);
 
             (<any>engine)._stencilState.reset();
 
@@ -672,6 +728,10 @@ module BABYLON {
          * @param mesh The mesh to exclude from the highlight layer
          */
         public addExcludedMesh(mesh: Mesh) {
+            if (!this._excludedMeshes) {
+                return;
+            }
+
             var meshExcluded = this._excludedMeshes[mesh.uniqueId];
             if (!meshExcluded) {
                 this._excludedMeshes[mesh.uniqueId] = {
@@ -691,13 +751,22 @@ module BABYLON {
           * @param mesh The mesh to highlight
           */
         public removeExcludedMesh(mesh: Mesh) {
-            var meshExcluded = this._excludedMeshes[mesh.uniqueId];
-            if (meshExcluded) {
-                mesh.onBeforeRenderObservable.remove(meshExcluded.beforeRender);
-                mesh.onAfterRenderObservable.remove(meshExcluded.afterRender);
+            if (!this._excludedMeshes) {
+                return;
             }
 
-            this._excludedMeshes[mesh.uniqueId] = undefined;
+            var meshExcluded = this._excludedMeshes[mesh.uniqueId];
+            if (meshExcluded) {
+                if (meshExcluded.beforeRender) {
+                    mesh.onBeforeRenderObservable.remove(meshExcluded.beforeRender);
+                }
+
+                if (meshExcluded.afterRender) {
+                    mesh.onAfterRenderObservable.remove(meshExcluded.afterRender);
+                }
+            }
+
+            this._excludedMeshes[mesh.uniqueId] = null;
         }
 
         /**
@@ -707,6 +776,10 @@ module BABYLON {
          * @param glowEmissiveOnly Extract the glow from the emissive texture
          */
         public addMesh(mesh: Mesh, color: Color3, glowEmissiveOnly = false) {
+            if (!this._meshes) {
+                return;
+            }
+
             var meshHighlight = this._meshes[mesh.uniqueId];
             if (meshHighlight) {
                 meshHighlight.color = color;
@@ -717,7 +790,7 @@ module BABYLON {
                     color: color,
                     // Lambda required for capture due to Observable this context
                     observerHighlight: mesh.onBeforeRenderObservable.add((mesh: Mesh) => {
-                        if (this._excludedMeshes[mesh.uniqueId]) {
+                        if (this._excludedMeshes && this._excludedMeshes[mesh.uniqueId]) {
                             this.defaultStencilReference(mesh);
                         }
                         else {
@@ -737,17 +810,27 @@ module BABYLON {
          * @param mesh The mesh to highlight
          */
         public removeMesh(mesh: Mesh) {
-            var meshHighlight = this._meshes[mesh.uniqueId];
-            if (meshHighlight) {
-                mesh.onBeforeRenderObservable.remove(meshHighlight.observerHighlight);
-                mesh.onAfterRenderObservable.remove(meshHighlight.observerDefault);
+            if (!this._meshes) {
+                return;
             }
 
-            this._meshes[mesh.uniqueId] = undefined;
+            var meshHighlight = this._meshes[mesh.uniqueId];
+            if (meshHighlight) {
+
+                if (meshHighlight.observerHighlight) {
+                    mesh.onBeforeRenderObservable.remove(meshHighlight.observerHighlight);
+                }
+
+                if (meshHighlight.observerDefault) {
+                    mesh.onAfterRenderObservable.remove(meshHighlight.observerDefault);
+                }
+            }
+
+            this._meshes[mesh.uniqueId] = null;
 
             this._shouldRender = false;
             for (var meshHighlightToCheck in this._meshes) {
-                if (meshHighlightToCheck) {
+                if (this._meshes[meshHighlightToCheck]) {
                     this._shouldRender = true;
                     break;
                 }
@@ -771,11 +854,11 @@ module BABYLON {
                 this._mainTextureDesiredSize.height = this._options.mainTextureFixedSize;
             }
             else {
-                this._mainTextureDesiredSize.width = this._engine.getRenderingCanvas().width * this._options.mainTextureRatio;
-                this._mainTextureDesiredSize.height = this._engine.getRenderingCanvas().height * this._options.mainTextureRatio;
+                this._mainTextureDesiredSize.width = this._engine.getRenderWidth() * this._options.mainTextureRatio;
+                this._mainTextureDesiredSize.height = this._engine.getRenderHeight() * this._options.mainTextureRatio;
 
-                this._mainTextureDesiredSize.width = Tools.GetExponentOfTwo(this._mainTextureDesiredSize.width, this._maxSize);
-                this._mainTextureDesiredSize.height = Tools.GetExponentOfTwo(this._mainTextureDesiredSize.height, this._maxSize);
+                this._mainTextureDesiredSize.width = this._engine.needPOTTextures ? Tools.GetExponentOfTwo(this._mainTextureDesiredSize.width, this._maxSize) : this._mainTextureDesiredSize.width;
+                this._mainTextureDesiredSize.height = this._engine.needPOTTextures ? Tools.GetExponentOfTwo(this._mainTextureDesiredSize.height, this._maxSize) : this._mainTextureDesiredSize.height;
             }
         }
 
@@ -816,23 +899,40 @@ module BABYLON {
             // Clean textures and post processes
             this.disposeTextureAndPostProcesses();
 
-            // Clean mesh references 
-            for (let id in this._meshes) {
-                let meshHighlight = this._meshes[id];
-                if (meshHighlight && meshHighlight.mesh) {
-                    meshHighlight.mesh.onBeforeRenderObservable.remove(meshHighlight.observerHighlight);
-                    meshHighlight.mesh.onAfterRenderObservable.remove(meshHighlight.observerDefault);
+            if (this._meshes) {
+                // Clean mesh references 
+                for (let id in this._meshes) {
+                    let meshHighlight = this._meshes[id];
+                    if (meshHighlight && meshHighlight.mesh) {
+
+                        if (meshHighlight.observerHighlight) {
+                            meshHighlight.mesh.onBeforeRenderObservable.remove(meshHighlight.observerHighlight);
+                        }
+
+                        if (meshHighlight.observerDefault) {
+                            meshHighlight.mesh.onAfterRenderObservable.remove(meshHighlight.observerDefault);
+                        }
+                    }
                 }
+                this._meshes = null;
             }
-            this._meshes = null;
-            for (let id in this._excludedMeshes) {
-                let meshHighlight = this._excludedMeshes[id];
-                if (meshHighlight) {
-                    meshHighlight.mesh.onBeforeRenderObservable.remove(meshHighlight.beforeRender);
-                    meshHighlight.mesh.onAfterRenderObservable.remove(meshHighlight.afterRender);
+
+            if (this._excludedMeshes) {
+                for (let id in this._excludedMeshes) {
+                    let meshHighlight = this._excludedMeshes[id];
+                    if (meshHighlight) {
+
+                        if (meshHighlight.beforeRender) {
+                            meshHighlight.mesh.onBeforeRenderObservable.remove(meshHighlight.beforeRender);
+                        }
+
+                        if (meshHighlight.afterRender) {
+                            meshHighlight.mesh.onAfterRenderObservable.remove(meshHighlight.afterRender);
+                        }
+                    }
                 }
+                this._excludedMeshes = null;
             }
-            this._excludedMeshes = null;
 
             // Remove from scene
             var index = this._scene.highlightLayers.indexOf(this, 0);

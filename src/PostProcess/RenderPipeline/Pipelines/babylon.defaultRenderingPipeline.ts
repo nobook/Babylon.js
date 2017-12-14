@@ -31,6 +31,8 @@
         private _defaultPipelineTextureType: number;
         private _bloomScale: number = 0.6;
 
+        private _buildAllowed = true;
+
         /**
 		 * Specifies the size of the bloom blur kernel, relative to the final output size
 		 */
@@ -124,10 +126,13 @@
          * @param {BABYLON.Scene} scene - The scene linked to this pipeline
          * @param {any} ratio - The size of the postprocesses (0.5 means that your postprocess will have a width = canvas.width 0.5 and a height = canvas.height 0.5)
          * @param {BABYLON.Camera[]} cameras - The array of cameras that the rendering pipeline will be attached to
+         * @param {boolean} automaticBuild - if false, you will have to manually call prepare() to update the pipeline
          */
-        constructor(name: string, hdr: boolean, scene: Scene, cameras?: Camera[]) {
+        constructor(name: string, hdr: boolean, scene: Scene, cameras?: Camera[], automaticBuild = true) {
             super(scene.getEngine(), name);
             this._cameras = cameras || [];
+
+            this._buildAllowed = automaticBuild;
 
             // Initialize
             this._scene = scene;
@@ -152,7 +157,21 @@
             this._buildPipeline();
         }
 
+        /**
+         * Force the compilation of the entire pipeline.
+         */
+        public prepare(): void {
+            let previousState = this._buildAllowed;
+            this._buildAllowed = true;
+            this._buildPipeline();
+            this._buildAllowed = previousState;
+        }
+
         private _buildPipeline() {
+            if (!this._buildAllowed) {
+                return;
+            }
+
             var engine = this._scene.getEngine();
 
             this._disposePostProcesses();
@@ -174,7 +193,7 @@
 				this.blurX.alwaysForcePOT = true;
 				this.blurX.autoClear = false;
 				this.blurX.onActivateObservable.add(() => {
-					let dw = this.blurX.width / engine.getRenderingCanvas().width;
+					let dw = this.blurX.width / engine.getRenderWidth(true);
 					this.blurX.kernel = this.bloomKernel * dw;
 				});
 
@@ -183,7 +202,7 @@
 				this.blurY.alwaysForcePOT = true;
 				this.blurY.autoClear = false;
 				this.blurY.onActivateObservable.add(() => {
-					let dh = this.blurY.height / engine.getRenderingCanvas().height;
+					let dh = this.blurY.height / engine.getRenderHeight(true);
 					this.blurY.kernel = this.bloomKernel * dh;
 				});				
 
@@ -204,15 +223,20 @@
                 this.imageProcessing = new BABYLON.ImageProcessingPostProcess("imageProcessing",  1.0, null, BABYLON.Texture.BILINEAR_SAMPLINGMODE, engine, false, this._defaultPipelineTextureType);
                 if (this._hdr) {
                     this.addEffect(new PostProcessRenderEffect(engine, this.ImageProcessingPostProcessId, () => { return this.imageProcessing; }, true));
+                } else {
+                    this._scene.imageProcessingConfiguration.applyByPostProcess = false;
                 }
-            }
+            } 
 
 			if (this.fxaaEnabled) {
                 this.fxaa = new FxaaPostProcess("fxaa", 1.0, null, Texture.BILINEAR_SAMPLINGMODE, engine, false, this._defaultPipelineTextureType);
                 this.addEffect(new PostProcessRenderEffect(engine, this.FxaaPostProcessId, () => { return this.fxaa; }, true));  
 
 				this.fxaa.autoClear = !this.bloomEnabled && (!this._hdr || !this.imageProcessing);
-			} else {
+			} else if (this._hdr && this.imageProcessing) {
+                this.finalMerge = this.imageProcessing;
+            }
+            else {
 				this.finalMerge = new BABYLON.PassPostProcess("finalMerge", 1.0, null, BABYLON.Texture.BILINEAR_SAMPLINGMODE, engine, false, this._defaultPipelineTextureType);
                 this.addEffect(new PostProcessRenderEffect(engine, this.FinalMergePostProcessId, () => { return this.finalMerge; }, true)); 
                 
@@ -281,14 +305,14 @@
                 }                
             }
 
-            this.pass = null;
-            this.highlights = null;
-            this.blurX = null;
-            this.blurY = null;
-            this.copyBack = null;
-            this.imageProcessing = null;
-            this.fxaa = null;
-            this.finalMerge = null;
+            (<any>this.pass) = null;
+            (<any>this.highlights) = null;
+            (<any>this.blurX) = null;
+            (<any>this.blurY) = null;
+            (<any>this.copyBack) = null;
+            (<any>this.imageProcessing) = null;
+            (<any>this.fxaa) = null;
+            (<any>this.finalMerge) = null;
         }
 
         // Dispose

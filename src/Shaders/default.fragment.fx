@@ -1,6 +1,6 @@
 ﻿#include<__decl__defaultFragment>
 
-#ifdef BUMP
+#if defined(BUMP) || !defined(NORMAL)
 #extension GL_OES_standard_derivatives : enable
 #endif
 
@@ -168,7 +168,7 @@ void main(void) {
 #ifdef NORMAL
 	vec3 normalW = normalize(vNormalW);
 #else
-	vec3 normalW = vec3(1.0, 1.0, 1.0);
+	vec3 normalW = normalize(-cross(dFdx(vPositionW), dFdy(vPositionW)));
 #endif
 
 #include<bumpFragment>
@@ -180,17 +180,19 @@ void main(void) {
 #ifdef DIFFUSE
 	baseColor = texture2D(diffuseSampler, vDiffuseUV + uvOffset);
 
-#ifdef ALPHATEST
-	if (baseColor.a < 0.4)
-		discard;
-#endif
+	#ifdef ALPHATEST
+		if (baseColor.a < 0.4)
+			discard;
+	#endif
 
-#ifdef ALPHAFROMDIFFUSE
-	alpha *= baseColor.a;
-#endif
+	#ifdef ALPHAFROMDIFFUSE
+		alpha *= baseColor.a;
+	#endif
 
 	baseColor.rgb *= vDiffuseInfos.y;
 #endif
+
+#include<depthPrePass>
 
 #ifdef VERTEXCOLOR
 	baseColor.rgb *= vColor.rgb;
@@ -408,6 +410,11 @@ void main(void) {
 		color.rgb = toLinearSpace(color.rgb);
 		color = applyImageProcessing(color);
 	#endif
+#endif
+
+#ifdef PREMULTIPLYALPHA
+	// Convert to associative (premultiplied) format if needed.
+	color.rgb *= color.a;
 #endif
 
 	gl_FragColor = color;

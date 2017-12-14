@@ -5,7 +5,7 @@ module BABYLON.GUI {
         private _value = 1;
         public ignoreAdaptiveScaling = false;
 
-        public constructor(value, public unit = ValueAndUnit.UNITMODE_PIXEL, public negativeValueAllowed = true) {
+        public constructor(value: number, public unit = ValueAndUnit.UNITMODE_PIXEL, public negativeValueAllowed = true) {
             this._value = value;
         }
 
@@ -19,6 +19,14 @@ module BABYLON.GUI {
 
         public get internalValue(): number {
             return this._value;
+        }
+
+        public getValueInPixel(host: AdvancedDynamicTexture, refValue: number): number {
+            if (this.isPixel) {
+                return this.getValue(host);
+            }
+
+            return this.getValue(host) * refValue;
         }
 
         public getValue(host: AdvancedDynamicTexture): number {

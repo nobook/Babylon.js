@@ -14,11 +14,12 @@
             return new CubeTexture("", scene, null, noMipmap, files);
         }
 
-        public static CreateFromPrefilteredData(url: string, scene: Scene) {
-            return new CubeTexture(url, scene, null, false, null, null, null, undefined, true);
+        public static CreateFromPrefilteredData(url: string, scene: Scene, forcedExtension: any = null) {
+            return new CubeTexture(url, scene, null, false, null, null, null, undefined, true, forcedExtension);
         }
 
-        constructor(rootUrl: string, scene: Scene, extensions?: string[], noMipmap?: boolean, files?: string[], onLoad: () => void = null, onError: () => void = null, format: number = Engine.TEXTUREFORMAT_RGBA, prefiltered = false) {
+        constructor(rootUrl: string, scene: Scene, extensions: Nullable<string[]> = null, noMipmap: boolean = false, files: Nullable<string[]> = null,
+            onLoad: Nullable<() => void> = null, onError: Nullable<(message?: string, exception?: any) => void> = null, format: number = Engine.TEXTUREFORMAT_RGBA, prefiltered = false, forcedExtension: any = null) {
             super(scene);
 
             this.name = rootUrl;
@@ -27,6 +28,11 @@
             this.hasAlpha = false;
             this._format = format;
             this._prefiltered = prefiltered;
+            this.isCube = true;
+            this._textureMatrix = Matrix.Identity();
+            if (prefiltered) {
+                this.gammaSpace = false;
+            }
 
             if (!rootUrl && !files) {
                 return;
@@ -34,19 +40,23 @@
 
             this._texture = this._getFromCache(rootUrl, noMipmap);
 
-            if (!files) {
+            const lastDot = rootUrl.lastIndexOf(".");
+            const extension = forcedExtension ? forcedExtension : (lastDot > -1 ? rootUrl.substring(lastDot).toLowerCase() : "");
+            const isDDS = (extension === ".dds");
 
-                if (!extensions) {
+            if (!files) {
+                if (!isDDS && !extensions) {
                     extensions = ["_px.jpg", "_py.jpg", "_pz.jpg", "_nx.jpg", "_ny.jpg", "_nz.jpg"];
                 }
 
                 files = [];
 
-                for (var index = 0; index < extensions.length; index++) {
-                    files.push(rootUrl + extensions[index]);
-                }
+                if (extensions) {
 
-                this._extensions = extensions;
+                    for (var index = 0; index < extensions.length; index++) {
+                        files.push(rootUrl + extensions[index]);
+                    }
+                }
             }
 
             this._files = files;
@@ -54,10 +64,10 @@
             if (!this._texture) {
                 if (!scene.useDelayedTextureLoading) {
                     if (prefiltered) {
-                        this._texture = scene.getEngine().createPrefilteredCubeTexture(rootUrl, scene, this.lodGenerationScale, this.lodGenerationOffset, onLoad, onError, format);
+                        this._texture = scene.getEngine().createPrefilteredCubeTexture(rootUrl, scene, this.lodGenerationScale, this.lodGenerationOffset, onLoad, onError, format, forcedExtension);
                     }
                     else {
-                        this._texture = scene.getEngine().createCubeTexture(rootUrl, scene, files, noMipmap, onLoad, onError, this._format);
+                        this._texture = scene.getEngine().createCubeTexture(rootUrl, scene, files, noMipmap, onLoad, onError, this._format, forcedExtension);
                     }
                 } else {
                     this.delayLoadState = Engine.DELAYLOADSTATE_NOTLOADED;
@@ -66,16 +76,8 @@
                 if (this._texture.isReady) {
                     Tools.SetImmediate(() => onLoad());
                 } else {
-                    this._texture.onLoadedCallbacks.push(onLoad);
+                    this._texture.onLoadedObservable.add(onLoad);
                 }
-            }
-
-            this.isCube = true;
-
-            this._textureMatrix = Matrix.Identity();
-
-            if (prefiltered) {
-                this.gammaSpace = false;
             }
         }
 
@@ -85,15 +87,20 @@
                 return;
             }
 
+            let scene = this.getScene();
+
+            if (!scene) {
+                return;
+            }
             this.delayLoadState = Engine.DELAYLOADSTATE_LOADED;
             this._texture = this._getFromCache(this.url, this._noMipmap);
 
             if (!this._texture) {
                 if (this._prefiltered) {
-                    this._texture = this.getScene().getEngine().createPrefilteredCubeTexture(this.url, this.getScene(), this.lodGenerationScale, this.lodGenerationOffset, undefined, undefined, this._format);
+                    this._texture = scene.getEngine().createPrefilteredCubeTexture(this.url, scene, this.lodGenerationScale, this.lodGenerationOffset, undefined, undefined, this._format);
                 }
                 else {
-                    this._texture = this.getScene().getEngine().createCubeTexture(this.url, this.getScene(), this._files, this._noMipmap, undefined, undefined, this._format);
+                    this._texture = scene.getEngine().createCubeTexture(this.url, scene, this._files, this._noMipmap, undefined, undefined, this._format);
                 }
             }
         }
@@ -125,7 +132,12 @@
 
         public clone(): CubeTexture {
             return SerializationHelper.Clone(() => {
-                return new CubeTexture(this.url, this.getScene(), this._extensions, this._noMipmap, this._files);
+                let scene = this.getScene();
+
+                if (!scene) {
+                    return this;
+                }
+                return new CubeTexture(this.url, scene, this._extensions, this._noMipmap, this._files);
             }, this);
         }
     }

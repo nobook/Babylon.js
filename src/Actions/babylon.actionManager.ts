@@ -5,14 +5,13 @@
      */
     export class ActionEvent {
         /**
-         * @constructor
          * @param source The mesh or sprite that triggered the action.
          * @param pointerX The X mouse cursor position at the time of the event
          * @param pointerY The Y mouse cursor position at the time of the event
          * @param meshUnderPointer The mesh that is currently pointed at (can be null)
          * @param sourceEvent the original (browser) event that triggered the ActionEvent
          */
-        constructor(public source: any, public pointerX: number, public pointerY: number, public meshUnderPointer: AbstractMesh, public sourceEvent?: any, public additionalData?: any) {
+        constructor(public source: any, public pointerX: number, public pointerY: number, public meshUnderPointer: Nullable<AbstractMesh>, public sourceEvent?: any, public additionalData?: any) {
 
         }
 
@@ -143,7 +142,7 @@
             return ActionManager._OnKeyUpTrigger;
         }
 
-        public static Triggers = {};
+        public static Triggers: { [key: string]: number} = {};
 
         // Members
         public actions = new Array<Action>();
@@ -296,7 +295,7 @@
          * @param {BABYLON.Action} action - the action to be registered
          * @return {BABYLON.Action} the action amended (prepared) after registration
          */
-        public registerAction(action: Action): Action {
+        public registerAction(action: Action): Nullable<Action> {
             if (action.trigger === ActionManager.OnEveryFrameTrigger) {
                 if (this.getScene().actionManager !== this) {
                     Tools.Warn("OnEveryFrameTrigger can only be used with scene.actionManager");
@@ -306,11 +305,11 @@
 
             this.actions.push(action);
 
-          if(ActionManager.Triggers[action.trigger]) {
-              ActionManager.Triggers[action.trigger]++;
+            if (ActionManager.Triggers[action.trigger]) {
+                ActionManager.Triggers[action.trigger]++;
             }
-            else{
-              ActionManager.Triggers[action.trigger] = 1;
+            else {
+                ActionManager.Triggers[action.trigger] = 1;
             }
 
             action._actionManager = this;
@@ -340,26 +339,28 @@
          * @param {number} trigger - the trigger to process
          * @param evt {BABYLON.ActionEvent} the event details to be processed
          */
-        public processTrigger(trigger: number, evt: ActionEvent): void {
+        public processTrigger(trigger: number, evt?: ActionEvent): void {
             for (var index = 0; index < this.actions.length; index++) {
                 var action = this.actions[index];
 
                 if (action.trigger === trigger) {
-                    if (trigger === ActionManager.OnKeyUpTrigger
-                        || trigger === ActionManager.OnKeyDownTrigger) {
-                        var parameter = action.getTriggerParameter();
+                    if (evt) {
+                        if (trigger === ActionManager.OnKeyUpTrigger
+                            || trigger === ActionManager.OnKeyDownTrigger) {
+                            var parameter = action.getTriggerParameter();
 
-                        if (parameter && parameter !== evt.sourceEvent.keyCode) {
-                            if (!parameter.toLowerCase) {
-                                continue;
-                            }
-                            var lowerCase = parameter.toLowerCase();
-
-                            if (lowerCase !== evt.sourceEvent.key) {
-                                var unicode = evt.sourceEvent.charCode ? evt.sourceEvent.charCode : evt.sourceEvent.keyCode;
-                                var actualkey = String.fromCharCode(unicode).toLowerCase();
-                                if (actualkey !== lowerCase) {
+                            if (parameter && parameter !== evt.sourceEvent.keyCode) {
+                                if (!parameter.toLowerCase) {
                                     continue;
+                                }
+                                var lowerCase = parameter.toLowerCase();
+
+                                if (lowerCase !== evt.sourceEvent.key) {
+                                    var unicode = evt.sourceEvent.charCode ? evt.sourceEvent.charCode : evt.sourceEvent.keyCode;
+                                    var actualkey = String.fromCharCode(unicode).toLowerCase();
+                                    if (actualkey !== lowerCase) {
+                                        continue;
+                                    }
                                 }
                             }
                         }
@@ -385,23 +386,23 @@
 
             return properties[properties.length - 1];
         }
-        
+
         public serialize(name: string): any {
             var root = {
-                children: [],
+                children: new Array(),
                 name: name,
                 type: 3, // Root node
-                properties: [] // Empty for root but required
+                properties: new Array() // Empty for root but required
             };
-            
+
             for (var i = 0; i < this.actions.length; i++) {
-                var triggerObject = { 
+                var triggerObject = {
                     type: 0, // Trigger
-                    children: [],
+                    children: new Array(),
                     name: ActionManager.GetTriggerName(this.actions[i].trigger),
-                    properties: []
+                    properties: new Array()
                 };
-                
+
                 var triggerOptions = this.actions[i].triggerOptions;
 
                 if (triggerOptions && typeof triggerOptions !== "number") {
@@ -419,18 +420,18 @@
                         triggerObject.properties.push({ name: "parameter", targetType: null, value: parameter });
                     }
                 }
-                
+
                 // Serialize child action, recursively
                 this.actions[i].serialize(triggerObject);
-                
+
                 // Add serialized trigger
                 root.children.push(triggerObject);
             }
-            
+
             return root;
         }
 
-        public static Parse(parsedActions: any, object: AbstractMesh, scene: Scene) {
+        public static Parse(parsedActions: any, object: Nullable<AbstractMesh>, scene: Scene) {
             var actionManager = new BABYLON.ActionManager(scene);
             if (object === null)
                 scene.actionManager = actionManager;
@@ -438,13 +439,13 @@
                 object.actionManager = actionManager;
 
             // instanciate a new object
-            var instanciate = (name: any, params: Array<any>): any => {
-                var newInstance: Object = Object.create(BABYLON[name].prototype);
+            var instanciate = (name: string, params: Array<any>): any => {
+                var newInstance: Object = Object.create(Tools.Instantiate("BABYLON." + name).prototype);
                 newInstance.constructor.apply(newInstance, params);
                 return newInstance;
             };
 
-            var parseParameter = (name: string, value: string, target: any, propertyPath: string): any => {
+            var parseParameter = (name: string, value: string, target: any, propertyPath: Nullable<string>): any => {
                 if (propertyPath === null) {
                     // String, boolean or float
                     var floatValue = parseFloat(value);
@@ -491,13 +492,13 @@
             };
 
             // traverse graph per trigger
-            var traverse = (parsedAction: any, trigger: any, condition: Condition, action: Action, combineArray: Array<Action> = null) => {
+            var traverse = (parsedAction: any, trigger: any, condition: Nullable<Condition>, action: Nullable<Action>, combineArray: Nullable<Array<Action>> = null) => {
                 if (parsedAction.detached)
                     return;
 
                 var parameters = new Array<any>();
                 var target: any = null;
-                var propertyPath: string = null;
+                var propertyPath: Nullable<string> = null;
                 var combine = parsedAction.combine && parsedAction.combine.length > 0;
 
                 // Parameters
@@ -530,7 +531,7 @@
                             value = scene.getSoundByName(value);
                         else if (name !== "propertyPath") {
                             if (parsedAction.type === 2 && name === "operator")
-                                value = ValueCondition[value];
+                                value = (<any>ValueCondition)[value];
                             else
                                 value = parseParameter(name, value, target, name === "value" ? propertyPath : null);
                         } else {
@@ -602,10 +603,10 @@
                         value.mesh = scene.getMeshByID(value._meshId);
                     }
 
-                    triggerParams = { trigger: BABYLON.ActionManager[trigger.name], parameter: value };
+                    triggerParams = { trigger: (<any>ActionManager)[trigger.name], parameter: value };
                 }
                 else
-                    triggerParams = BABYLON.ActionManager[trigger.name];
+                    triggerParams = (<any>ActionManager)[trigger.name];
 
                 for (var j = 0; j < trigger.children.length; j++) {
                     if (!trigger.detached)
@@ -616,16 +617,16 @@
 
         public static GetTriggerName(trigger: number): string {
             switch (trigger) {
-                case 0:  return "NothingTrigger";
-                case 1:  return "OnPickTrigger";
-                case 2:  return "OnLeftPickTrigger";
-                case 3:  return "OnRightPickTrigger";
-                case 4:  return "OnCenterPickTrigger";
-                case 5:  return "OnPickDownTrigger";
-                case 6:  return "OnPickUpTrigger";
-                case 7:  return "OnLongPressTrigger";
-                case 8:  return "OnPointerOverTrigger";
-                case 9:  return "OnPointerOutTrigger";
+                case 0: return "NothingTrigger";
+                case 1: return "OnPickTrigger";
+                case 2: return "OnLeftPickTrigger";
+                case 3: return "OnRightPickTrigger";
+                case 4: return "OnCenterPickTrigger";
+                case 5: return "OnPickDownTrigger";
+                case 6: return "OnPickUpTrigger";
+                case 7: return "OnLongPressTrigger";
+                case 8: return "OnPointerOverTrigger";
+                case 9: return "OnPointerOutTrigger";
                 case 10: return "OnEveryFrameTrigger";
                 case 11: return "OnIntersectionEnterTrigger";
                 case 12: return "OnIntersectionExitTrigger";

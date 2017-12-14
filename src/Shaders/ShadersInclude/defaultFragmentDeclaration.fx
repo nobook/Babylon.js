@@ -27,6 +27,7 @@ uniform vec2 vLightmapInfos;
 
 #ifdef BUMP
 uniform vec3 vBumpInfos;
+uniform vec2 vTangentSpaceParams;
 #endif
 
 #if defined(REFLECTIONMAP_SPHERICAL) || defined(REFLECTIONMAP_PROJECTION) || defined(REFRACTION)

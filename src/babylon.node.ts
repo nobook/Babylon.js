@@ -1,6 +1,4 @@
-﻿/// <reference path="Tools\babylon.decorators.ts" />
-
-module BABYLON {
+﻿module BABYLON {
 
     /**
      * Node is the basic class for all scene objects (Mesh, Light Camera).
@@ -24,25 +22,24 @@ module BABYLON {
         public doNotSerialize = false;
 
         public animations = new Array<Animation>();
-        private _ranges: { [name: string]: AnimationRange; } = {};
+        private _ranges: { [name: string]: Nullable<AnimationRange> } = {};
 
         public onReady: (node: Node) => void;
 
-        private _childrenFlag = -1;
         private _isEnabled = true;
         private _isReady = true;
         public _currentRenderId = -1;
         private _parentRenderId = -1;
 
-        public _waitingParentId: string;
+        public _waitingParentId: Nullable<string>;
 
         private _scene: Scene;
-        public _cache;
+        public _cache: any;
 
-        private _parentNode: Node;
+        private _parentNode: Nullable<Node>;
         private _children: Node[];
 
-        public set parent(parent: Node) {
+        public set parent(parent: Nullable<Node>) {
             if (this._parentNode === parent) {
                 return;
             }
@@ -64,7 +61,7 @@ module BABYLON {
             }
         }
 
-        public get parent(): Node {
+        public get parent(): Nullable<Node> {
             return this._parentNode;
         }
 
@@ -78,7 +75,7 @@ module BABYLON {
         */
         public onDisposeObservable = new Observable<Node>();
 
-        private _onDisposeObserver: Observer<Node>;
+        private _onDisposeObserver: Nullable<Observer<Node>>;
         public set onDispose(callback: () => void) {
             if (this._onDisposeObserver) {
                 this.onDisposeObservable.remove(this._onDisposeObserver);
@@ -91,10 +88,11 @@ module BABYLON {
          * @param {string} name - the name and id to be given to this node
          * @param {BABYLON.Scene} the scene this node will be added to
          */
-        constructor(name: string, scene: Scene) {
+        constructor(name: string, scene: Nullable<Scene> = null) {
             this.name = name;
             this.id = name;
-            this._scene = scene || Engine.LastCreatedScene;
+            this._scene = <Scene>(scene || Engine.LastCreatedScene);
+            this.uniqueId = this._scene.getUniqueId();
             this._initCache();
         }
 
@@ -104,6 +102,61 @@ module BABYLON {
 
         public getEngine(): Engine {
             return this._scene.getEngine();
+        }
+
+        // Behaviors
+        private _behaviors = new Array<Behavior<Node>>();
+
+        public addBehavior(behavior: Behavior<Node>): Node {
+            var index = this._behaviors.indexOf(behavior);
+
+            if (index !== -1) {
+                return this;
+            }
+
+            behavior.init();
+            if (this._scene.isLoading) {
+                // We defer the attach when the scene will be loaded
+                var observer = this._scene.onDataLoadedObservable.add(() => {
+                    behavior.attach(this);
+                    setTimeout(() => {
+                        // Need to use a timeout to avoid removing an observer while iterating the list of observers
+                        this._scene.onDataLoadedObservable.remove(observer);
+                    }, 0);
+                });
+            } else {
+                behavior.attach(this);
+            }
+            this._behaviors.push(behavior);
+
+            return this;
+        }
+
+        public removeBehavior(behavior: Behavior<Node>): Node {
+            var index = this._behaviors.indexOf(behavior);
+
+            if (index === -1) {
+                return this;
+            }
+
+            this._behaviors[index].detach();
+            this._behaviors.splice(index, 1);
+
+            return this;
+        }
+
+        public get behaviors(): Behavior<Node>[] {
+            return this._behaviors;
+        }
+
+        public getBehaviorByName(name: string): Nullable<Behavior<Node>> {
+            for (var behavior of this._behaviors) {
+                if (behavior.name === name) {
+                    return behavior;
+                }
+            }
+
+            return null;
         }
 
         // override it in derived class
@@ -138,7 +191,9 @@ module BABYLON {
         }
 
         public _markSyncedWithParent() {
-            this._parentRenderId = this.parent._currentRenderId;
+            if (this.parent) {
+                this._parentRenderId = this.parent._currentRenderId;
+            }
         }
 
         public isSynchronizedWithParent(): boolean {
@@ -259,20 +314,31 @@ module BABYLON {
          * @return {BABYLON.Node[]} all children nodes of all types.
          */
         public getDescendants(directDescendantsOnly?: boolean, predicate?: (node: Node) => boolean): Node[] {
-            var results = [];
+            var results = new Array<Node>();
 
             this._getDescendants(results, directDescendantsOnly, predicate);
 
             return results;
-        }    
-        
+        }
+
         /**
          * Get all child-meshes of this node.
          */
-        public getChildMeshes(directDecendantsOnly?: boolean, predicate?: (node: Node) => boolean): AbstractMesh[] {
+        public getChildMeshes(directDescendantsOnly?: boolean, predicate?: (node: Node) => boolean): AbstractMesh[] {
             var results: Array<AbstractMesh> = [];
-            this._getDescendants(results, directDecendantsOnly, (node: Node) => {
+            this._getDescendants(results, directDescendantsOnly, (node: Node) => {
                 return ((!predicate || predicate(node)) && (node instanceof AbstractMesh));
+            });
+            return results;
+        }
+
+        /**
+         * Get all child-transformNodes of this node.
+         */
+        public getChildTransformNodes(directDescendantsOnly?: boolean, predicate?: (node: Node) => boolean): TransformNode[] {
+            var results: Array<TransformNode> = [];
+            this._getDescendants(results, directDescendantsOnly, (node: Node) => {
+                return ((!predicate || predicate(node)) && (node instanceof TransformNode));
             });
             return results;
         }
@@ -300,7 +366,7 @@ module BABYLON {
             }
         }
 
-        public getAnimationByName(name: string): Animation {
+        public getAnimationByName(name: string): Nullable<Animation> {
             for (var i = 0; i < this.animations.length; i++) {
                 var animation = this.animations[i];
 
@@ -330,10 +396,10 @@ module BABYLON {
                     this.animations[i].deleteRange(name, deleteFrames);
                 }
             }
-            this._ranges[name] = undefined; // said much faster than 'delete this._range[name]' 
+            this._ranges[name] = null; // said much faster than 'delete this._range[name]' 
         }
 
-        public getAnimationRange(name: string): AnimationRange {
+        public getAnimationRange(name: string): Nullable<AnimationRange> {
             return this._ranges[name];
         }
 
@@ -341,7 +407,7 @@ module BABYLON {
             var range = this.getAnimationRange(name);
 
             if (!range) {
-                return null;
+                return;
             }
 
             this._scene.beginAnimation(this, range.from, range.to, loop, speedRatio, onAnimationEnd);
@@ -350,13 +416,22 @@ module BABYLON {
         public serializeAnimationRanges(): any {
             var serializationRanges = [];
             for (var name in this._ranges) {
+                var localRange = this._ranges[name];
+                if (!localRange) {
+                    continue;
+                }
                 var range: any = {};
                 range.name = name;
-                range.from = this._ranges[name].from;
-                range.to = this._ranges[name].to;
+                range.from = localRange.from;
+                range.to = localRange.to;
                 serializationRanges.push(range);
             }
             return serializationRanges;
+        }
+
+        // override it in derived class
+        public computeWorldMatrix(force?: boolean): Matrix {
+            return Matrix.Identity();
         }
 
         public dispose(): void {
@@ -365,8 +440,15 @@ module BABYLON {
             // Callback
             this.onDisposeObservable.notifyObservers(this);
             this.onDisposeObservable.clear();
+
+            // Behaviors
+            for (var behavior of this._behaviors) {
+                behavior.detach();
+            }
+
+            this._behaviors = [];
         }
-        
+
         public static ParseAnimationRanges(node: Node, parsedNode: any, scene: Scene): void {
             if (parsedNode.ranges) {
                 for (var index = 0; index < parsedNode.ranges.length; index++) {

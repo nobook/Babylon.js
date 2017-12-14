@@ -6,6 +6,8 @@
         private _lastUpdate: number;
         private _generateMipMaps: boolean
         private _setTextureReady: () => void;
+        private _engine: Engine;
+
         /**
          * Creates a video texture.
          * Sample : https://doc.babylonjs.com/tutorials/01._Advanced_Texturing
@@ -18,23 +20,25 @@
         constructor(name: string, urlsOrVideo: string[] | HTMLVideoElement, scene: Scene, generateMipMaps = false, invertY = false, samplingMode: number = Texture.TRILINEAR_SAMPLINGMODE) {
             super(null, scene, !generateMipMaps, invertY);
 
-            var urls: string[];
+            var urls: Nullable<string[]> = null;
             this.name = name;
 
             if (urlsOrVideo instanceof HTMLVideoElement) {
                 this.video = <any>urlsOrVideo;
             } else {
-                urls = <any>urlsOrVideo;
-
+                urls = urlsOrVideo;
+                
                 this.video = document.createElement("video");
                 this.video.autoplay = false;
                 this.video.loop = true;
+                Tools.SetCorsBehavior(urls, this.video);
             }
 
+            this._engine = (<Scene>this.getScene()).getEngine();
             this._generateMipMaps = generateMipMaps;
             this._samplingMode = samplingMode;
 
-            if (Tools.IsExponentOfTwo(this.video.videoWidth) && Tools.IsExponentOfTwo(this.video.videoHeight)) {
+            if (!this._engine.needPOTTextures ||(Tools.IsExponentOfTwo(this.video.videoWidth) && Tools.IsExponentOfTwo(this.video.videoHeight))) {
                 this.wrapU = Texture.WRAP_ADDRESSMODE;
                 this.wrapV = Texture.WRAP_ADDRESSMODE;
             } else {
@@ -60,11 +64,13 @@
         }
 
         private __setTextureReady(): void {
-            this._texture.isReady = true;
+            if (this._texture) {
+                this._texture.isReady = true;
+            }
         }
 
         private _createTexture(): void {
-            this._texture = this.getScene().getEngine().createDynamicTexture(this.video.videoWidth, this.video.videoHeight, this._generateMipMaps, this._samplingMode);
+            this._texture = this._engine.createDynamicTexture(this.video.videoWidth, this.video.videoHeight, this._generateMipMaps, this._samplingMode);
 
             if (this._autoLaunch) {
                 this._autoLaunch = false;
@@ -72,6 +78,11 @@
             }
             this._setTextureReady = this.__setTextureReady.bind(this);
             this.video.addEventListener("playing", this._setTextureReady);
+        }
+
+        
+        public _rebuild(): void {
+            this.update();
         }
 
         public update(): boolean {
@@ -82,7 +93,7 @@
             }
 
             this._lastUpdate = now;
-            this.getScene().getEngine().updateVideoTexture(this._texture, this.video, this._invertY);
+            this._engine.updateVideoTexture(this._texture, this.video, this._invertY);
             return true;
         }
 
@@ -122,7 +133,7 @@
                             max: (constraints && constraints.maxHeight) || 480
                         }
                     }
-                }, (stream) => {
+                }, (stream: any) => {
 
                     if (video.mozSrcObject !== undefined) { // hack for Firefox < 19
                         video.mozSrcObject = stream;
@@ -135,7 +146,7 @@
                     if (onReady) {
                         onReady(new BABYLON.VideoTexture("video", video, scene, true, true));
                     }
-			    }, function (e) {
+			    }, function (e: DOMException) {
                     Tools.Error(e.name);
                 });
             }

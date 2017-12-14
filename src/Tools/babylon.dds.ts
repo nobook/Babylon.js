@@ -4,43 +4,45 @@
     // http://msdn.microsoft.com/en-us/library/bb943991.aspx/
     var DDS_MAGIC = 0x20534444;
 
-    var DDSD_CAPS = 0x1,
-        DDSD_HEIGHT = 0x2,
-        DDSD_WIDTH = 0x4,
-        DDSD_PITCH = 0x8,
-        DDSD_PIXELFORMAT = 0x1000,
-        DDSD_MIPMAPCOUNT = 0x20000,
-        DDSD_LINEARSIZE = 0x80000,
-        DDSD_DEPTH = 0x800000;
+    var 
+        //DDSD_CAPS = 0x1,
+        //DDSD_HEIGHT = 0x2,
+        //DDSD_WIDTH = 0x4,
+        //DDSD_PITCH = 0x8,
+        //DDSD_PIXELFORMAT = 0x1000,
+        DDSD_MIPMAPCOUNT = 0x20000
+        //DDSD_LINEARSIZE = 0x80000,
+        //DDSD_DEPTH = 0x800000;
 
-    var DDSCAPS_COMPLEX = 0x8,
-        DDSCAPS_MIPMAP = 0x400000,
-        DDSCAPS_TEXTURE = 0x1000;
+    // var DDSCAPS_COMPLEX = 0x8,
+    //     DDSCAPS_MIPMAP = 0x400000,
+    //     DDSCAPS_TEXTURE = 0x1000;
 
-    var DDSCAPS2_CUBEMAP = 0x200,
-        DDSCAPS2_CUBEMAP_POSITIVEX = 0x400,
-        DDSCAPS2_CUBEMAP_NEGATIVEX = 0x800,
-        DDSCAPS2_CUBEMAP_POSITIVEY = 0x1000,
-        DDSCAPS2_CUBEMAP_NEGATIVEY = 0x2000,
-        DDSCAPS2_CUBEMAP_POSITIVEZ = 0x4000,
-        DDSCAPS2_CUBEMAP_NEGATIVEZ = 0x8000,
-        DDSCAPS2_VOLUME = 0x200000;
+    var DDSCAPS2_CUBEMAP = 0x200
+        // DDSCAPS2_CUBEMAP_POSITIVEX = 0x400,
+        // DDSCAPS2_CUBEMAP_NEGATIVEX = 0x800,
+        // DDSCAPS2_CUBEMAP_POSITIVEY = 0x1000,
+        // DDSCAPS2_CUBEMAP_NEGATIVEY = 0x2000,
+        // DDSCAPS2_CUBEMAP_POSITIVEZ = 0x4000,
+        // DDSCAPS2_CUBEMAP_NEGATIVEZ = 0x8000,
+        // DDSCAPS2_VOLUME = 0x200000;
 
-    var DDPF_ALPHAPIXELS = 0x1,
-        DDPF_ALPHA = 0x2,
+    var 
+        //DDPF_ALPHAPIXELS = 0x1,
+        //DDPF_ALPHA = 0x2,
         DDPF_FOURCC = 0x4,
         DDPF_RGB = 0x40,
-        DDPF_YUV = 0x200,
+        //DDPF_YUV = 0x200,
         DDPF_LUMINANCE = 0x20000;
 
-    function FourCCToInt32(value) {
+    function FourCCToInt32(value: string) {
         return value.charCodeAt(0) +
             (value.charCodeAt(1) << 8) +
             (value.charCodeAt(2) << 16) +
             (value.charCodeAt(3) << 24);
     }
 
-    function Int32ToFourCC(value) {
+    function Int32ToFourCC(value: number) {
         return String.fromCharCode(
             value & 0xff,
             (value >> 8) & 0xff,
@@ -74,14 +76,14 @@
     var off_pfFlags = 20;
     var off_pfFourCC = 21;
     var off_RGBbpp = 22;
-    var off_RMask = 23;
-    var off_GMask = 24;
-    var off_BMask = 25;
-    var off_AMask = 26;
-    var off_caps1 = 27;
+    // var off_RMask = 23;
+    // var off_GMask = 24;
+    // var off_BMask = 25;
+    // var off_AMask = 26;
+    // var off_caps1 = 27;
     var off_caps2 = 28;
-    var off_caps3 = 29;
-    var off_caps4 = 30;
+    // var off_caps3 = 29;
+    // var off_caps4 = 30;
     var off_dxgiFormat = 32
 
     export interface DDSInfo {
@@ -135,7 +137,7 @@
                 isRGB: (header[off_pfFlags] & DDPF_RGB) === DDPF_RGB,
                 isLuminance: (header[off_pfFlags] & DDPF_LUMINANCE) === DDPF_LUMINANCE,
                 isCube: (header[off_caps2] & DDSCAPS2_CUBEMAP) === DDSCAPS2_CUBEMAP,
-                isCompressed: (fourCC === FOURCC_DXT1 || fourCC === FOURCC_DXT3 || FOURCC_DXT1 === FOURCC_DXT5),
+                isCompressed: (fourCC === FOURCC_DXT1 || fourCC === FOURCC_DXT3 || fourCC === FOURCC_DXT5),
                 dxgiFormat: dxgiFormat,
                 textureType: textureType
             };
@@ -272,13 +274,13 @@
             for (var y = 0; y < height; y++) {
                 for (var x = 0; x < width; x++) {
                     var srcPos = (x + y * width) * 4;
-                    destArray[index] = MathTools.Clamp(srcData[srcPos]) * 255;
-                    destArray[index + 1] = MathTools.Clamp(srcData[srcPos + 1]) * 255;
-                    destArray[index + 2] = MathTools.Clamp(srcData[srcPos + 2]) * 255;
+                    destArray[index] = Scalar.Clamp(srcData[srcPos]) * 255;
+                    destArray[index + 1] = Scalar.Clamp(srcData[srcPos + 1]) * 255;
+                    destArray[index + 2] = Scalar.Clamp(srcData[srcPos + 2]) * 255;
                     if (DDSTools.StoreLODInAlphaChannel) {
                         destArray[index + 3] = lod;
                     } else {
-                        destArray[index + 3] = MathTools.Clamp(srcData[srcPos + 3]) * 255;
+                        destArray[index + 3] = Scalar.Clamp(srcData[srcPos + 3]) * 255;
                     }
                     index += 4;
                 }
@@ -294,13 +296,13 @@
             for (var y = 0; y < height; y++) {
                 for (var x = 0; x < width; x++) {
                     var srcPos = (x + y * width) * 4;
-                    destArray[index] = MathTools.Clamp(DDSTools._FromHalfFloat(srcData[srcPos])) * 255;
-                    destArray[index + 1] = MathTools.Clamp(DDSTools._FromHalfFloat(srcData[srcPos + 1])) * 255;
-                    destArray[index + 2] = MathTools.Clamp(DDSTools._FromHalfFloat(srcData[srcPos + 2])) * 255;
+                    destArray[index] = Scalar.Clamp(DDSTools._FromHalfFloat(srcData[srcPos])) * 255;
+                    destArray[index + 1] = Scalar.Clamp(DDSTools._FromHalfFloat(srcData[srcPos + 1])) * 255;
+                    destArray[index + 2] = Scalar.Clamp(DDSTools._FromHalfFloat(srcData[srcPos + 2])) * 255;
                     if (DDSTools.StoreLODInAlphaChannel) {
                         destArray[index + 3] = lod;
                     } else {
-                        destArray[index + 3] = MathTools.Clamp(DDSTools._FromHalfFloat(srcData[srcPos + 3])) * 255;
+                        destArray[index + 3] = Scalar.Clamp(DDSTools._FromHalfFloat(srcData[srcPos + 3])) * 255;
                     }
                     index += 4;
                 }
@@ -359,16 +361,17 @@
             return byteArray;
         }
 
-        public static UploadDDSLevels(engine: Engine, arrayBuffer: any, info: DDSInfo, loadMipmaps: boolean, faces: number, lodIndex = -1): void {
-            var gl = engine._gl;
+        public static UploadDDSLevels(engine: Engine, gl:WebGLRenderingContext, arrayBuffer: any, info: DDSInfo, loadMipmaps: boolean, faces: number, lodIndex = -1, currentFace?: number): void {
             var ext = engine.getCaps().s3tc;
 
-            var header = new Int32Array(arrayBuffer, 0, headerLengthInt),
-                fourCC, blockBytes, internalFormat, format,
-                width, height, dataLength, dataOffset,
-                byteArray, mipmapCount, mip;
+            var header = new Int32Array(arrayBuffer, 0, headerLengthInt);
+            var fourCC: number, width: number, height: number, dataLength: number = 0, dataOffset: number;
+            var byteArray: Uint8Array, mipmapCount: number, mip: number;
+            let internalFormat = 0;
+            let format = 0;
+            let blockBytes = 1;
 
-            if (header[off_magic] != DDS_MAGIC) {
+            if (header[off_magic] !== DDS_MAGIC) {
                 Tools.Error("Invalid magic number in DDS header");
                 return;
             }
@@ -393,22 +396,22 @@
                 switch (fourCC) {
                 case FOURCC_DXT1:
                     blockBytes = 8;
-                    internalFormat = ext.COMPRESSED_RGBA_S3TC_DXT1_EXT;
+                    internalFormat = (<WEBGL_compressed_texture_s3tc>ext).COMPRESSED_RGBA_S3TC_DXT1_EXT;
                     break;
                 case FOURCC_DXT3:
                     blockBytes = 16;
-                    internalFormat = ext.COMPRESSED_RGBA_S3TC_DXT3_EXT;
+                    internalFormat = (<WEBGL_compressed_texture_s3tc>ext).COMPRESSED_RGBA_S3TC_DXT3_EXT;
                     break;
                 case FOURCC_DXT5:
                     blockBytes = 16;
-                    internalFormat = ext.COMPRESSED_RGBA_S3TC_DXT5_EXT;
+                    internalFormat = (<WEBGL_compressed_texture_s3tc>ext).COMPRESSED_RGBA_S3TC_DXT5_EXT;
                     break;
                 case FOURCC_D3DFMT_R16G16B16A16F:  
                     computeFormats = true;
                     break;
                 case FOURCC_D3DFMT_R32G32B32A32F:
                     computeFormats = true;
-                    break;                    
+                    break;
                 case FOURCC_DX10:
                     // There is an additionnal header so dataOffset need to be changed
                     dataOffset += 5 * 4; // 5 uints
@@ -424,7 +427,7 @@
                             info.isFourCC = false;
                             bpp = 32;
                             supported = true;
-                            break;                        
+                            break;
                     }
 
                     if (supported) {
@@ -447,7 +450,7 @@
             }
             
             for (var face = 0; face < faces; face++) {
-                var sampler = faces === 1 ? gl.TEXTURE_2D : (gl.TEXTURE_CUBE_MAP_POSITIVE_X + face);
+                var sampler = faces === 1 ? gl.TEXTURE_2D : (gl.TEXTURE_CUBE_MAP_POSITIVE_X + face + (currentFace ? currentFace : 0));
 
                 width = header[off_width];
                 height = header[off_height];
@@ -459,7 +462,7 @@
 
                         if (!info.isCompressed && info.isFourCC) {
                             dataLength = width * height * 4;
-                            var floatArray: ArrayBufferView;
+                            var floatArray: Nullable<ArrayBufferView> = null;
 
                             if (engine.badOS || engine.badDesktopOS || (!engine.getCaps().textureHalfFloat && !engine.getCaps().textureFloat)) { // Required because iOS has many issues with float and half float generation
                                 if (bpp === 128) {
@@ -487,7 +490,9 @@
                                 }
                             }
 
-                            engine._uploadDataToTexture(sampler, i, internalFormat, width, height, gl.RGBA, format, floatArray);
+                            if (floatArray) {
+                                engine._uploadDataToTexture(sampler, i, internalFormat, width, height, gl.RGBA, format, floatArray);
+                            }
                         } else if (info.isRGB) {
                             if (bpp === 24) {
                                 dataLength = width * height * 3;
@@ -512,12 +517,17 @@
                             engine._uploadCompressedDataToTexture(sampler, i, internalFormat, width, height, byteArray);
                         }
                     }
-                    dataOffset += width * height * (bpp / 8);
+                    dataOffset += bpp ? (width * height * (bpp / 8)) : dataLength;
                     width *= 0.5;
                     height *= 0.5;
 
                     width = Math.max(1.0, width);
                     height = Math.max(1.0, height);
+                }
+
+                if (currentFace !== undefined) {
+                    // Loading a single face
+                    break;
                 }
             }
         }

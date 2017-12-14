@@ -1,58 +1,177 @@
 ﻿/// <reference path="../../../dist/preview release/babylon.d.ts"/>
 
 module BABYLON {
+    export enum GLTFLoaderCoordinateSystemMode {
+        /**
+         * Automatically convert the glTF right-handed data to the appropriate system based on the current coordinate system mode of the scene.
+         */
+        AUTO,
+
+        /**
+         * Sets the useRightHandedSystem flag on the scene.
+         */
+        FORCE_RIGHT_HANDED,
+    }
+
+    export enum GLTFLoaderAnimationStartMode {
+        /**
+         * No animation will start.
+         */
+        NONE,
+
+        /**
+         * The first animation will start.
+         */
+        FIRST,
+
+        /**
+         * All animations will start.
+         */
+        ALL,
+    }
+
     export interface IGLTFLoaderData {
         json: Object;
-        bin: ArrayBufferView;
+        bin: Nullable<ArrayBufferView>;
     }
 
-    export interface IGLTFLoader {
-        importMeshAsync: (meshesNames: any, scene: Scene, data: IGLTFLoaderData, rootUrl: string, onSuccess: (meshes: AbstractMesh[], particleSystems: ParticleSystem[], skeletons: Skeleton[]) => void, onError: () => void) => void;
-        loadAsync: (scene: Scene, data: IGLTFLoaderData, rootUrl: string, onSuccess: () => void, onError: () => void) => void;
+    export interface IGLTFLoader extends IDisposable {
+        importMeshAsync: (meshesNames: any, scene: Scene, data: IGLTFLoaderData, rootUrl: string, onSuccess: (meshes: AbstractMesh[], particleSystems: ParticleSystem[], skeletons: Skeleton[]) => void, onProgress: (event: ProgressEvent) => void, onError: (message: string) => void) => void;
+        loadAsync: (scene: Scene, data: IGLTFLoaderData, rootUrl: string, onSuccess: () => void, onProgress: (event: ProgressEvent) => void, onError: (message: string) => void) => void;
     }
 
-    export class GLTFFileLoader implements ISceneLoaderPluginAsync {
+    export class GLTFFileLoader implements IDisposable, ISceneLoaderPluginAsync, ISceneLoaderPluginFactory {
         public static CreateGLTFLoaderV1: (parent: GLTFFileLoader) => IGLTFLoader;
         public static CreateGLTFLoaderV2: (parent: GLTFFileLoader) => IGLTFLoader;
 
-        // V1 options
-        public static HomogeneousCoordinates: boolean = false;
-        public static IncrementalLoading: boolean = true;
+        // #region Common options
 
-        // V2 options
+        /**
+         * Raised when the asset has been parsed.
+         * The data.json property stores the glTF JSON.
+         * The data.bin property stores the BIN chunk from a glTF binary or null if the input is not a glTF binary.
+         */
+        public onParsed: (data: IGLTFLoaderData) => void;
+
+        // #endregion
+
+        // #region V1 options
+
+        public static IncrementalLoading = true;
+
+        public static HomogeneousCoordinates = false;
+
+        // #endregion
+
+        // #region V2 options
+
+        /**
+         * The coordinate system mode (AUTO, FORCE_RIGHT_HANDED).
+         */
+        public coordinateSystemMode = GLTFLoaderCoordinateSystemMode.AUTO;
+
+        /**
+         * The animation start mode (NONE, FIRST, ALL).
+         */
+        public animationStartMode = GLTFLoaderAnimationStartMode.FIRST;
+
+        /**
+         * Set to true to compile materials before raising the success callback.
+         */
+        public compileMaterials = false;
+
+        /**
+         * Set to true to also compile materials with clip planes.
+         */
+        public useClipPlane = false;
+
+        /**
+         * Set to true to compile shadow generators before raising the success callback.
+         */
+        public compileShadowGenerators = false;
+
+        /**
+         * Raised when the loader creates a mesh after parsing the glTF properties of the mesh.
+         */
+        public onMeshLoaded: (mesh: AbstractMesh) => void;
+
+        /**
+         * Raised when the loader creates a texture after parsing the glTF properties of the texture.
+         */
         public onTextureLoaded: (texture: BaseTexture) => void;
+
+        /**
+         * Raised when the loader creates a material after parsing the glTF properties of the material.
+         */
         public onMaterialLoaded: (material: Material) => void;
+
+        /**
+         * Raised when the asset is completely loaded, immediately before the loader is disposed.
+         * For assets with LODs, raised when all of the LODs are complete.
+         * For assets without LODs, raised when the model is complete, immediately after onSuccess.
+         */
         public onComplete: () => void;
+
+        // #endregion
+
+        private _loader: IGLTFLoader;
+
+        public name = "gltf";
 
         public extensions: ISceneLoaderPluginExtensions = {
             ".gltf": { isBinary: false },
             ".glb": { isBinary: true }
         };
 
-        public importMeshAsync(meshesNames: any, scene: Scene, data: any, rootUrl: string, onSuccess: (meshes: AbstractMesh[], particleSystems: ParticleSystem[], skeletons: Skeleton[]) => void, onError: () => void): void {
-            var loaderData = GLTFFileLoader._parse(data);
-            var loader = this._getLoader(loaderData);
-            if (!loader) {
-                onError();
-                return;
+        /**
+         * Disposes the loader, releases resources during load, and cancels any outstanding requests.
+         */
+        public dispose(): void {
+            if (this._loader) {
+                this._loader.dispose();
             }
-
-            loader.importMeshAsync(meshesNames, scene, loaderData, rootUrl, onSuccess, onError);
         }
 
-        public loadAsync(scene: Scene, data: string | ArrayBuffer, rootUrl: string, onSuccess: () => void, onError: () => void): void {
-            var loaderData = GLTFFileLoader._parse(data);
-            var loader = this._getLoader(loaderData);
-            if (!loader) {
-                onError();
-                return;
-            }
+        public importMeshAsync(meshesNames: any, scene: Scene, data: any, rootUrl: string, onSuccess: (meshes: AbstractMesh[], particleSystems: ParticleSystem[], skeletons: Skeleton[]) => void, onProgress: (event: ProgressEvent) => void, onError: (message: string) => void): void {
+            try {
+                const loaderData = GLTFFileLoader._parse(data);
 
-            return loader.loadAsync(scene, loaderData, rootUrl, onSuccess, onError);
+                if (this.onParsed) {
+                    this.onParsed(loaderData);
+                }
+
+                this._loader = this._getLoader(loaderData);
+                this._loader.importMeshAsync(meshesNames, scene, loaderData, rootUrl, onSuccess, onProgress, onError);
+            }
+            catch (e) {
+                onError(e.message);
+            }
+        }
+
+        public loadAsync(scene: Scene, data: string | ArrayBuffer, rootUrl: string, onSuccess: () => void, onProgress: (event: ProgressEvent) => void, onError: (message: string) => void): void {
+            try {
+                const loaderData = GLTFFileLoader._parse(data);
+
+                if (this.onParsed) {
+                    this.onParsed(loaderData);
+                }
+
+                this._loader = this._getLoader(loaderData);
+                this._loader.loadAsync(scene, loaderData, rootUrl, onSuccess, onProgress, onError);
+            }
+            catch (e) {
+                onError(e.message);
+            }
         }
 
         public canDirectLoad(data: string): boolean {
             return ((data.indexOf("scene") !== -1) && (data.indexOf("node") !== -1));
+        }
+
+        public rewriteRootURL: (rootUrl: string, responseURL?: string) => string;
+
+        public createPlugin(): ISceneLoaderPlugin | ISceneLoaderPluginAsync {
+            return new GLTFFileLoader();
         }
 
         private static _parse(data: string | ArrayBuffer): IGLTFLoaderData {
@@ -69,34 +188,35 @@ module BABYLON {
         private _getLoader(loaderData: IGLTFLoaderData): IGLTFLoader {
             const loaderVersion = { major: 2, minor: 0 };
 
-            var asset = (<any>loaderData.json).asset || {};
+            const asset = (<any>loaderData.json).asset || {};
 
-            var version = GLTFFileLoader._parseVersion(asset.version);
+            const version = GLTFFileLoader._parseVersion(asset.version);
             if (!version) {
-                Tools.Error("Invalid version");
-                return null;
+                throw new Error("Invalid version: " + asset.version);
             }
 
-            var minVersion = GLTFFileLoader._parseVersion(asset.minVersion);
-            if (minVersion) {
+            if (asset.minVersion !== undefined) {
+                const minVersion = GLTFFileLoader._parseVersion(asset.minVersion);
+                if (!minVersion) {
+                    throw new Error("Invalid minimum version: " + asset.minVersion);
+                }
+
                 if (GLTFFileLoader._compareVersion(minVersion, loaderVersion) > 0) {
-                    Tools.Error("Incompatible version");
-                    return null;
+                    throw new Error("Incompatible minimum version: " + asset.minVersion);
                 }
             }
 
-            var createLoader = {
+            const createLoaders: { [key: number]: (parent: GLTFFileLoader) => IGLTFLoader } = {
                 1: GLTFFileLoader.CreateGLTFLoaderV1,
                 2: GLTFFileLoader.CreateGLTFLoaderV2
             };
 
-            var loader = createLoader[version.major](this);
-            if (loader === null) {
-                Tools.Error("Unsupported version");
-                return null;
+            const createLoader = createLoaders[version.major];
+            if (!createLoader) {
+                throw new Error("Unsupported version: " + asset.version);
             }
 
-            return loader;
+            return createLoader(this);
         }
 
         private static _parseBinary(data: ArrayBuffer): IGLTFLoaderData {
@@ -104,50 +224,48 @@ module BABYLON {
                 Magic: 0x46546C67
             };
 
-            var binaryReader = new BinaryReader(data);
+            const binaryReader = new BinaryReader(data);
 
-            var magic = binaryReader.readUint32();
+            const magic = binaryReader.readUint32();
             if (magic !== Binary.Magic) {
-                Tools.Error("Unexpected magic: " + magic);
-                return null;
+                throw new Error("Unexpected magic: " + magic);
             }
 
-            var version = binaryReader.readUint32();
+            const version = binaryReader.readUint32();
             switch (version) {
                 case 1: return GLTFFileLoader._parseV1(binaryReader);
                 case 2: return GLTFFileLoader._parseV2(binaryReader);
             }
 
-            Tools.Error("Unsupported version: " + version);
-            return null;
+            throw new Error("Unsupported version: " + version);
         }
 
         private static _parseV1(binaryReader: BinaryReader): IGLTFLoaderData {
             const ContentFormat = {
                 JSON: 0
             };
-            
-            var length = binaryReader.readUint32();
+
+            const length = binaryReader.readUint32();
             if (length != binaryReader.getLength()) {
-                Tools.Error("Length in header does not match actual data length: " + length + " != " + binaryReader.getLength());
-                return null;
+                throw new Error("Length in header does not match actual data length: " + length + " != " + binaryReader.getLength());
             }
 
-            var contentLength = binaryReader.readUint32();
-            var contentFormat = binaryReader.readUint32();
+            const contentLength = binaryReader.readUint32();
+            const contentFormat = binaryReader.readUint32();
 
-            var content: Object;
+            let content: Object;
             switch (contentFormat) {
-                case ContentFormat.JSON:
+                case ContentFormat.JSON: {
                     content = JSON.parse(GLTFFileLoader._decodeBufferToText(binaryReader.readUint8Array(contentLength)));
                     break;
-                default:
-                    Tools.Error("Unexpected content format: " + contentFormat);
-                    return null;
+                }
+                default: {
+                    throw new Error("Unexpected content format: " + contentFormat);
+                }
             }
 
-            var bytesRemaining = binaryReader.getLength() - binaryReader.getPosition();
-            var body = binaryReader.readUint8Array(bytesRemaining);
+            const bytesRemaining = binaryReader.getLength() - binaryReader.getPosition();
+            const body = binaryReader.readUint8Array(bytesRemaining);
 
             return {
                 json: content,
@@ -161,37 +279,37 @@ module BABYLON {
                 BIN: 0x004E4942
             };
 
-            var length = binaryReader.readUint32();
+            const length = binaryReader.readUint32();
             if (length !== binaryReader.getLength()) {
-                Tools.Error("Length in header does not match actual data length: " + length + " != " + binaryReader.getLength());
-                return null;
+                throw new Error("Length in header does not match actual data length: " + length + " != " + binaryReader.getLength());
             }
 
             // JSON chunk
-            var chunkLength = binaryReader.readUint32();
-            var chunkFormat = binaryReader.readUint32();
+            const chunkLength = binaryReader.readUint32();
+            const chunkFormat = binaryReader.readUint32();
             if (chunkFormat !== ChunkFormat.JSON) {
-                Tools.Error("First chunk format is not JSON");
-                return null;
+                throw new Error("First chunk format is not JSON");
             }
-            var json = JSON.parse(GLTFFileLoader._decodeBufferToText(binaryReader.readUint8Array(chunkLength)));
+            const json = JSON.parse(GLTFFileLoader._decodeBufferToText(binaryReader.readUint8Array(chunkLength)));
 
             // Look for BIN chunk
-            var bin: Uint8Array = null;
+            let bin: Nullable<Uint8Array> = null;
             while (binaryReader.getPosition() < binaryReader.getLength()) {
-                chunkLength = binaryReader.readUint32();
-                chunkFormat = binaryReader.readUint32();
+                const chunkLength = binaryReader.readUint32();
+                const chunkFormat = binaryReader.readUint32();
                 switch (chunkFormat) {
-                    case ChunkFormat.JSON:
-                        Tools.Error("Unexpected JSON chunk");
-                        return null;
-                    case ChunkFormat.BIN:
+                    case ChunkFormat.JSON: {
+                        throw new Error("Unexpected JSON chunk");
+                    }
+                    case ChunkFormat.BIN: {
                         bin = binaryReader.readUint8Array(chunkLength);
                         break;
-                    default:
+                    }
+                    default: {
                         // ignore unrecognized chunkFormat
                         binaryReader.skipBytes(chunkLength);
                         break;
+                    }
                 }
             }
 
@@ -201,26 +319,22 @@ module BABYLON {
             };
         }
 
-        private static _parseVersion(version: string): { major: number, minor: number } {
-            if (!version) {
-                return null;
+        private static _parseVersion(version: string): Nullable<{ major: number, minor: number }> {
+            if (version === "1.0" || version === "1.0.1") {
+                return {
+                    major: 1,
+                    minor: 0
+                };
             }
 
-            var parts = version.split(".");
-            if (parts.length === 0) {
+            const match = (version + "").match(/^(\d+)\.(\d+)/);
+            if (!match) {
                 return null;
             }
-
-            var major = parseInt(parts[0]);
-            if (major > 1 && parts.length != 2) {
-                return null;
-            }
-
-            var minor = parseInt(parts[1]);
 
             return {
-                major: major,
-                minor: parseInt(parts[0])
+                major: parseInt(match[1]),
+                minor: parseInt(match[2])
             };
         }
 
@@ -232,12 +346,12 @@ module BABYLON {
             return 0;
         }
 
-        private static _decodeBufferToText(view: ArrayBufferView): string {
-            var result = "";
-            var length = view.byteLength;
+        private static _decodeBufferToText(buffer: Uint8Array): string {
+            let result = "";
+            const length = buffer.byteLength;
 
-            for (var i = 0; i < length; ++i) {
-                result += String.fromCharCode(view[i]);
+            for (let i = 0; i < length; i++) {
+                result += String.fromCharCode(buffer[i]);
             }
 
             return result;
@@ -264,13 +378,13 @@ module BABYLON {
         }
 
         public readUint32(): number {
-            var value = this._dataView.getUint32(this._byteOffset, true);
+            const value = this._dataView.getUint32(this._byteOffset, true);
             this._byteOffset += 4;
             return value;
         }
 
         public readUint8Array(length: number): Uint8Array {
-            var value = new Uint8Array(this._arrayBuffer, this._byteOffset, length);
+            const value = new Uint8Array(this._arrayBuffer, this._byteOffset, length);
             this._byteOffset += length;
             return value;
         }

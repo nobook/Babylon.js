@@ -34,7 +34,7 @@ interface WebGLRenderingContext {
     vertexAttribDivisor(index: number, divisor: number): void;
 
     createVertexArray(): any;
-    bindVertexArray(vao: WebGLVertexArrayObject): void;
+    bindVertexArray(vao: BABYLON.Nullable<WebGLVertexArrayObject>): void;
     deleteVertexArray(vao: WebGLVertexArrayObject): void;
 
     blitFramebuffer(srcX0: number, srcY0: number, srcX1: number, srcY1: number, dstX0: number, dstY0: number, dstX1: number, dstY1: number, mask: number, filter: number): void;
@@ -43,6 +43,14 @@ interface WebGLRenderingContext {
     bindBufferBase(target: number, index: number, buffer: WebGLBuffer | null): void;
     getUniformBlockIndex(program: WebGLProgram, uniformBlockName: string): number;
     uniformBlockBinding(program: WebGLProgram, uniformBlockIndex: number, uniformBlockBinding: number): void;
+
+    // Queries
+    createQuery(): WebGLQuery;
+    deleteQuery(query: WebGLQuery): void;
+    beginQuery(target: number, query: WebGLQuery): void;
+    endQuery(target: number): void;
+    getQueryParameter(query: WebGLQuery, pname: number): any;
+    getQuery(target: number, pname: number): any;
 
     MAX_SAMPLES: number;
     RGBA8: number;
@@ -55,7 +63,7 @@ interface WebGLRenderingContext {
     RGBA32F: number;
 
     DEPTH24_STENCIL8: number;
-    
+
     /* Multiple Render Targets */
     drawBuffers(buffers: number[]): void;
     readBuffer(src: number): void;
@@ -65,10 +73,16 @@ interface WebGLRenderingContext {
     readonly COLOR_ATTACHMENT1: number;                             // 0x8CE2
     readonly COLOR_ATTACHMENT2: number;                             // 0x8CE3
     readonly COLOR_ATTACHMENT3: number;                             // 0x8CE4
+
+    // Occlusion Query
+    ANY_SAMPLES_PASSED_CONSERVATIVE: number;
+    ANY_SAMPLES_PASSED: number;
+    QUERY_RESULT_AVAILABLE: number;
+    QUERY_RESULT: number;
 }
 
 interface HTMLURL {
-    createObjectURL(param1: any, param2?: any);
+    createObjectURL(param1: any, param2?: any): string;
 }
 
 interface Document {
@@ -99,47 +113,15 @@ interface CanvasRenderingContext2D {
     msImageSmoothingEnabled: boolean;
 }
 
-interface WebGLTexture {
-    isReady: boolean;
-    isCube: boolean;
-    url: string;
-    samplingMode: number;
-    references: number;
-    generateMipMaps: boolean;
-    samples: number;
-    type: number;
-    format: number;
-    onLoadedCallbacks: Array<Function>;
-    _size: number;
-    _baseWidth: number;
-    _baseHeight: number;
-    _width: number;
-    _height: number;
-    _workingCanvas: HTMLCanvasElement;
-    _workingContext: CanvasRenderingContext2D;
-    _framebuffer: WebGLFramebuffer;
-    _depthStencilBuffer: WebGLRenderbuffer;
-    _MSAAFramebuffer: WebGLFramebuffer;
-    _MSAARenderBuffer: WebGLRenderbuffer;
-    _cachedCoordinatesMode: number;
-    _cachedWrapU: number;
-    _cachedWrapV: number;
-    _isDisabled: boolean;
-    _generateStencilBuffer: boolean;
-    _generateDepthBuffer: boolean;
-    _sphericalPolynomial: BABYLON.SphericalPolynomial;
-    // The following three fields helps sharing generated fixed LODs for texture filtering
-    // In environment not supporting the textureLOD extension like EDGE. They are for internal use only.
-    // They are at the level of the gl texture to benefit from the cache.
-    _lodTextureHigh: BABYLON.BaseTexture;
-    _lodTextureMid: BABYLON.BaseTexture;
-    _lodTextureLow: BABYLON.BaseTexture;
-}
-
 interface WebGLBuffer {
     references: number;
     capacity: number;
     is32Bits: boolean;
+}
+
+interface WebGLProgram {
+    transformFeedback: BABYLON.Nullable<WebGLTransformFeedback>;
+    __SPECTOR_rebuildProgram: BABYLON.Nullable<(vertexSourceCode: string, fragmentSourceCode: string, onCompiled: (program: WebGLProgram) => void, onError: (message: string) => void) => void>;
 }
 
 interface MouseEvent {
@@ -159,11 +141,15 @@ interface MSStyleCSSProperties {
 interface Navigator {
     getVRDisplays: () => any;
     mozGetVRDevices: (any: any) => any;
-    isCocoonJS: boolean;
     getUserMedia: any;
     webkitGetUserMedia: any;
     mozGetUserMedia: any;
     msGetUserMedia: any;
+
+    getGamepads(func?: any): any;
+    webkitGetGamepads(func?: any): any
+    msGetGamepads(func?: any): any;
+    webkitGamepads(func?: any): any;    
 }
 
 interface HTMLVideoElement {
@@ -618,4 +604,19 @@ declare namespace SIMD {
         xor(a: SIMD.Bool8x16, b: SIMD.Bool8x16): SIMD.Bool8x16;
         not(a: SIMD.Bool8x16, b: SIMD.Bool8x16): SIMD.Bool8x16;
     }
+}
+
+interface EXT_disjoint_timer_query {
+    QUERY_COUNTER_BITS_EXT: number;
+    TIME_ELAPSED_EXT: number;
+    TIMESTAMP_EXT: number;
+    GPU_DISJOINT_EXT: number;
+    QUERY_RESULT_EXT: number;
+    QUERY_RESULT_AVAILABLE_EXT: number;
+    queryCounterEXT(query: WebGLQuery, target: number): void;
+    createQueryEXT(): WebGLQuery;
+    beginQueryEXT(target: number, query: WebGLQuery): void;
+    endQueryEXT(target: number): void;
+    getQueryObjectEXT(query: WebGLQuery, target: number): any;
+    deleteQueryEXT(query: WebGLQuery): void;
 }

@@ -3,7 +3,7 @@
         // Members
         public id: string;
         public delayLoadState = Engine.DELAYLOADSTATE_NONE;
-        public delayLoadingFile: string;
+        public delayLoadingFile: Nullable<string>;
         public onGeometryUpdated: (geometry: Geometry, kind?: string) => void;
 
         // Private
@@ -16,15 +16,17 @@
         private _isDisposed = false;
         private _extend: { minimum: Vector3, maximum: Vector3 };
         private _boundingBias: Vector2;
-        public _delayInfo; //ANY
-        private _indexBuffer: WebGLBuffer;
-        public _boundingInfo: BoundingInfo;
-        public _delayLoadingFunction: (any: any, geometry: Geometry) => void;
+        public _delayInfo: Array<string>;
+        private _indexBuffer: Nullable<WebGLBuffer>;
+        private _indexBufferIsUpdatable = false;
+        public _boundingInfo: Nullable<BoundingInfo>;
+        public _delayLoadingFunction: Nullable<(any: any, geometry: Geometry) => void>;
         public _softwareSkinningRenderId: number;
         private _vertexArrayObjects: { [key: string]: WebGLVertexArrayObject; };
+        private _updatable: boolean;
 
         // Cache
-        public _positions: Vector3[];
+        public _positions: Nullable<Vector3[]>;
 
         /**
          *  The Bias Vector to apply on the bounding elements (box/sphere), the max extend is computed as v += v * bias.x + bias.y, the min is computed as v -= v * bias.x + bias.y
@@ -44,7 +46,15 @@
             this.updateBoundingInfo(true, null);
         }
 
-        constructor(id: string, scene: Scene, vertexData?: VertexData, updatable?: boolean, mesh?: Mesh) {
+        public static CreateGeometryForMesh(mesh: Mesh): Geometry {
+            let geometry = new Geometry(Geometry.RandomId(), mesh.getScene());
+
+            geometry.applyToMesh(mesh);
+
+            return geometry;
+        }
+
+        constructor(id: string, scene: Scene, vertexData?: VertexData, updatable: boolean = false, mesh: Nullable<Mesh> = null) {
             this.id = id;
             this._engine = scene.getEngine();
             this._meshes = [];
@@ -52,6 +62,7 @@
             //Init vertex buffer cache
             this._vertexBuffers = {};
             this._indices = [];
+            this._updatable = updatable;
 
             // vertexData
             if (vertexData) {
@@ -69,7 +80,7 @@
             // applyToMesh
             if (mesh) {
                 if (mesh.getClassName() === "LinesMesh") {
-                    this.boundingBias = new Vector2(0, (<LinesMesh> mesh).intersectionThreshold);
+                    this.boundingBias = new Vector2(0, (<LinesMesh>mesh).intersectionThreshold);
                     this.updateExtend();
                 }
 
@@ -104,12 +115,29 @@
             return true;
         }
 
+        public _rebuild(): void {
+            if (this._vertexArrayObjects) {
+                this._vertexArrayObjects = {};
+            }
+
+            // Index buffer
+            if (this._meshes.length !== 0 && this._indices) {
+                this._indexBuffer = this._engine.createIndexBuffer(this._indices);
+            }
+
+            // Vertex buffers
+            for (var key in this._vertexBuffers) {
+                let vertexBuffer = <VertexBuffer>this._vertexBuffers[key];
+                vertexBuffer._rebuild();
+            }
+        }
+
         public setAllVerticesData(vertexData: VertexData, updatable?: boolean): void {
             vertexData.applyToGeometry(this, updatable);
             this.notifyUpdate();
         }
 
-        public setVerticesData(kind: string, data: number[] | Float32Array, updatable?: boolean, stride?: number): void {
+        public setVerticesData(kind: string, data: FloatArray, updatable: boolean = false, stride?: number): void {
             var buffer = new VertexBuffer(this._engine, data, kind, updatable, this._meshes.length === 0, stride);
 
             this.setVerticesBuffer(buffer);
@@ -131,7 +159,7 @@
             this._vertexBuffers[kind] = buffer;
 
             if (kind === VertexBuffer.PositionKind) {
-                var data = buffer.getData();
+                var data = <FloatArray>buffer.getData();
                 var stride = buffer.getStrideSize();
 
                 this._totalVertices = data.length / stride;
@@ -145,7 +173,7 @@
                 for (var index = 0; index < numOfMeshes; index++) {
                     var mesh = meshes[index];
                     mesh._boundingInfo = new BoundingInfo(this._extend.minimum, this._extend.maximum);
-                    mesh._createGlobalSubMesh();
+                    mesh._createGlobalSubMesh(false);
                     mesh.computeWorldMatrix(true);
                 }
             }
@@ -169,7 +197,7 @@
             this.notifyUpdate(kind);
         }
 
-        public updateVerticesData(kind: string, data: number[] | Float32Array, updateExtends?: boolean): void {
+        public updateVerticesData(kind: string, data: FloatArray, updateExtends: boolean = false): void {
             var vertexBuffer = this.getVertexBuffer(kind);
 
             if (!vertexBuffer) {
@@ -188,7 +216,7 @@
             this.notifyUpdate(kind);
         }
 
-        private updateBoundingInfo(updateExtends: boolean, data: number[] | Float32Array) {
+        private updateBoundingInfo(updateExtends: boolean, data: Nullable<FloatArray>) {
             if (updateExtends) {
                 this.updateExtend(data);
             }
@@ -211,19 +239,28 @@
             }
         }
 
-        public _bind(effect: Effect, indexToBind: WebGLBuffer = undefined): void {
+        public _bind(effect: Nullable<Effect>, indexToBind?: Nullable<WebGLBuffer>): void {
+            if (!effect) {
+                return;
+            }
+
             if (indexToBind === undefined) {
                 indexToBind = this._indexBuffer;
             }
+            let vbs = this.getVertexBuffers();
+
+            if (!vbs) {
+                return;
+            }
 
             if (indexToBind != this._indexBuffer || !this._vertexArrayObjects) {
-                this._engine.bindBuffers(this.getVertexBuffers(), indexToBind, effect);
+                this._engine.bindBuffers(vbs, indexToBind, effect);
                 return;
             }
 
             // Using VAO
             if (!this._vertexArrayObjects[effect.key]) {
-                this._vertexArrayObjects[effect.key] = this._engine.recordVertexArrayObject(this.getVertexBuffers(), indexToBind, effect);
+                this._vertexArrayObjects[effect.key] = this._engine.recordVertexArrayObject(vbs, indexToBind, effect);
             }
 
             this._engine.bindVertexArrayObject(this._vertexArrayObjects[effect.key], indexToBind);
@@ -237,12 +274,12 @@
             return this._totalVertices;
         }
 
-        public getVerticesData(kind: string, copyWhenShared?: boolean, forceCopy?: boolean): number[] | Float32Array {
+        public getVerticesData(kind: string, copyWhenShared?: boolean, forceCopy?: boolean): Nullable<FloatArray> {
             var vertexBuffer = this.getVertexBuffer(kind);
             if (!vertexBuffer) {
                 return null;
             }
-            var orig = vertexBuffer.getData();
+            var orig = <FloatArray>vertexBuffer.getData();
             if (!forceCopy && (!copyWhenShared || this._meshes.length === 1)) {
                 return orig;
             } else {
@@ -255,14 +292,40 @@
             }
         }
 
-        public getVertexBuffer(kind: string): VertexBuffer {
+        /**
+         * Returns a boolean defining if the vertex data for the requested `kind` is updatable.
+         * Possible `kind` values :
+         * - BABYLON.VertexBuffer.PositionKind
+         * - BABYLON.VertexBuffer.UVKind
+         * - BABYLON.VertexBuffer.UV2Kind
+         * - BABYLON.VertexBuffer.UV3Kind
+         * - BABYLON.VertexBuffer.UV4Kind
+         * - BABYLON.VertexBuffer.UV5Kind
+         * - BABYLON.VertexBuffer.UV6Kind
+         * - BABYLON.VertexBuffer.ColorKind
+         * - BABYLON.VertexBuffer.MatricesIndicesKind
+         * - BABYLON.VertexBuffer.MatricesIndicesExtraKind
+         * - BABYLON.VertexBuffer.MatricesWeightsKind
+         * - BABYLON.VertexBuffer.MatricesWeightsExtraKind
+         */
+        public isVertexBufferUpdatable(kind: string): boolean {
+            let vb = this._vertexBuffers[kind];
+
+            if (!vb) {
+                return false;
+            }
+
+            return vb.isUpdatable();
+        }
+
+        public getVertexBuffer(kind: string): Nullable<VertexBuffer> {
             if (!this.isReady()) {
                 return null;
             }
             return this._vertexBuffers[kind];
         }
 
-        public getVertexBuffers(): { [key: string]: VertexBuffer; } {
+        public getVertexBuffers(): Nullable<{ [key: string]: VertexBuffer; }> {
             if (!this.isReady()) {
                 return null;
             }
@@ -295,7 +358,19 @@
             return result;
         }
 
-        public setIndices(indices: IndicesArray, totalVertices?: number): void {
+        public updateIndices(indices: IndicesArray, offset?: number): void {
+            if (!this._indexBuffer) {
+                return;
+            }
+
+            if (!this._indexBufferIsUpdatable) {
+                this.setIndices(indices, null, true);
+            } else {
+                this._engine.updateDynamicIndexBuffer(this._indexBuffer, indices, offset);
+            }
+        }
+
+        public setIndices(indices: IndicesArray, totalVertices: Nullable<number> = null, updatable: boolean = false): void {
             if (this._indexBuffer) {
                 this._engine._releaseBuffer(this._indexBuffer);
             }
@@ -303,11 +378,12 @@
             this._disposeVertexArrayObjects();
 
             this._indices = indices;
+            this._indexBufferIsUpdatable = updatable;
             if (this._meshes.length !== 0 && this._indices) {
-                this._indexBuffer = this._engine.createIndexBuffer(this._indices);
+                this._indexBuffer = this._engine.createIndexBuffer(this._indices, updatable);
             }
 
-            if (totalVertices !== undefined) {
+            if (totalVertices != undefined) { // including null and undefined
                 this._totalVertices = totalVertices;
             }
 
@@ -315,7 +391,7 @@
             var numOfMeshes = meshes.length;
 
             for (var index = 0; index < numOfMeshes; index++) {
-                meshes[index]._createGlobalSubMesh();
+                meshes[index]._createGlobalSubMesh(true);
             }
             this.notifyUpdate();
         }
@@ -327,7 +403,7 @@
             return this._indices.length;
         }
 
-        public getIndices(copyWhenShared?: boolean): IndicesArray {
+        public getIndices(copyWhenShared?: boolean): Nullable<IndicesArray> {
             if (!this.isReady()) {
                 return null;
             }
@@ -344,14 +420,14 @@
             }
         }
 
-        public getIndexBuffer(): WebGLBuffer {
+        public getIndexBuffer(): Nullable<WebGLBuffer> {
             if (!this.isReady()) {
                 return null;
             }
             return this._indexBuffer;
         }
 
-        public _releaseVertexArrayObject(effect: Effect) {
+        public _releaseVertexArrayObject(effect: Nullable<Effect> = null) {
             if (!effect || !this._vertexArrayObjects) {
                 return;
             }
@@ -406,9 +482,9 @@
             }
         }
 
-        private updateExtend(data = null, stride? : number) {
+        private updateExtend(data: Nullable<FloatArray> = null, stride?: number) {
             if (!data) {
-                data = this._vertexBuffers[VertexBuffer.PositionKind].getData();
+                data = <FloatArray>this._vertexBuffers[VertexBuffer.PositionKind].getData();
             }
 
             this._extend = Tools.ExtractMinAndMax(data, 0, this._totalVertices, this.boundingBias, stride);
@@ -432,7 +508,7 @@
                     }
                     mesh._boundingInfo = new BoundingInfo(this._extend.minimum, this._extend.maximum);
 
-                    mesh._createGlobalSubMesh();
+                    mesh._createGlobalSubMesh(false);
 
                     //bounding info was just created again, world matrix should be applied again.
                     mesh._updateBoundingInfo();
@@ -476,9 +552,17 @@
         }
 
         private _queueLoad(scene: Scene, onLoaded?: () => void): void {
+            if (!this.delayLoadingFile) {
+                return;
+            }
+
             scene._addPendingData(this);
             Tools.LoadFile(this.delayLoadingFile, data => {
-                this._delayLoadingFunction(JSON.parse(data), this);
+                if (!this._delayLoadingFunction) {
+                    return;
+                }
+
+                this._delayLoadingFunction(JSON.parse(data as string), this);
 
                 this.delayLoadState = Engine.DELAYLOADSTATE_LOADED;
                 this._delayInfo = [];
@@ -533,13 +617,11 @@
         }
 
         // Cache
-        public _resetPointsArrayCache(): void
-        {
+        public _resetPointsArrayCache(): void {
             this._positions = null;
         }
 
-        public _generatePointsArray(): boolean
-        {
+        public _generatePointsArray(): boolean {
             if (this._positions)
                 return true;
 
@@ -611,8 +693,10 @@
             vertexData.indices = [];
 
             var indices = this.getIndices();
-            for (var index = 0; index < indices.length; index++) {
-                (<number[]>vertexData.indices).push(indices[index]);
+            if (indices) {
+                for (var index = 0; index < indices.length; index++) {
+                    (<number[]>vertexData.indices).push(indices[index]);
+                }
             }
 
             var updatable = false;
@@ -628,12 +712,16 @@
                     vertexData.set((<number[]>data).slice(0), kind);
                 }
                 if (!stopChecking) {
-                    updatable = this.getVertexBuffer(kind).isUpdatable();
-                    stopChecking = !updatable;
+                    let vb = this.getVertexBuffer(kind);
+
+                    if (vb) {
+                        updatable = vb.isUpdatable();
+                        stopChecking = !updatable;
+                    }
                 }
             }
 
-            var geometry = new Geometry(id, this._scene, vertexData, updatable, null);
+            var geometry = new Geometry(id, this._scene, vertexData, updatable);
 
             geometry.delayLoadState = this.delayLoadState;
             geometry.delayLoadingFile = this.delayLoadingFile;
@@ -654,6 +742,7 @@
             var serializationObject: any = {};
 
             serializationObject.id = this.id;
+            serializationObject.updatable = this._updatable;
 
             if (Tags && Tags.HasTags(this)) {
                 serializationObject.tags = Tags.GetTags(this);
@@ -662,7 +751,7 @@
             return serializationObject;
         }
 
-        private toNumberArray(origin: Float32Array | IndicesArray) : number[] {
+        private toNumberArray(origin: Nullable<Float32Array | IndicesArray>): number[] {
             if (Array.isArray(origin)) {
                 return origin;
             } else {
@@ -675,63 +764,63 @@
 
             if (this.isVerticesDataPresent(VertexBuffer.PositionKind)) {
                 serializationObject.positions = this.toNumberArray(this.getVerticesData(VertexBuffer.PositionKind));
-                if (this.getVertexBuffer(VertexBuffer.PositionKind).isUpdatable) {
+                if (this.isVertexBufferUpdatable(VertexBuffer.PositionKind)) {
                     serializationObject.positions._updatable = true;
                 }
             }
 
             if (this.isVerticesDataPresent(VertexBuffer.NormalKind)) {
                 serializationObject.normals = this.toNumberArray(this.getVerticesData(VertexBuffer.NormalKind));
-                if (this.getVertexBuffer(VertexBuffer.NormalKind).isUpdatable) {
+                if (this.isVertexBufferUpdatable(VertexBuffer.NormalKind)) {
                     serializationObject.normals._updatable = true;
                 }
             }
 
             if (this.isVerticesDataPresent(VertexBuffer.UVKind)) {
                 serializationObject.uvs = this.toNumberArray(this.getVerticesData(VertexBuffer.UVKind));
-                if (this.getVertexBuffer(VertexBuffer.UVKind).isUpdatable) {
+                if (this.isVertexBufferUpdatable(VertexBuffer.UVKind)) {
                     serializationObject.uvs._updatable = true;
                 }
             }
 
             if (this.isVerticesDataPresent(VertexBuffer.UV2Kind)) {
                 serializationObject.uv2s = this.toNumberArray(this.getVerticesData(VertexBuffer.UV2Kind));
-                if (this.getVertexBuffer(VertexBuffer.UV2Kind).isUpdatable) {
+                if (this.isVertexBufferUpdatable(VertexBuffer.UV2Kind)) {
                     serializationObject.uv2s._updatable = true;
                 }
             }
 
             if (this.isVerticesDataPresent(VertexBuffer.UV3Kind)) {
                 serializationObject.uv3s = this.toNumberArray(this.getVerticesData(VertexBuffer.UV3Kind));
-                if (this.getVertexBuffer(VertexBuffer.UV3Kind).isUpdatable) {
+                if (this.isVertexBufferUpdatable(VertexBuffer.UV3Kind)) {
                     serializationObject.uv3s._updatable = true;
                 }
             }
 
             if (this.isVerticesDataPresent(VertexBuffer.UV4Kind)) {
                 serializationObject.uv4s = this.toNumberArray(this.getVerticesData(VertexBuffer.UV4Kind));
-                if (this.getVertexBuffer(VertexBuffer.UV4Kind).isUpdatable) {
+                if (this.isVertexBufferUpdatable(VertexBuffer.UV4Kind)) {
                     serializationObject.uv4s._updatable = true;
                 }
             }
 
             if (this.isVerticesDataPresent(VertexBuffer.UV5Kind)) {
                 serializationObject.uv5s = this.toNumberArray(this.getVerticesData(VertexBuffer.UV5Kind));
-                if (this.getVertexBuffer(VertexBuffer.UV5Kind).isUpdatable) {
+                if (this.isVertexBufferUpdatable(VertexBuffer.UV5Kind)) {
                     serializationObject.uv5s._updatable = true;
                 }
             }
 
             if (this.isVerticesDataPresent(VertexBuffer.UV6Kind)) {
                 serializationObject.uv6s = this.toNumberArray(this.getVerticesData(VertexBuffer.UV6Kind));
-                if (this.getVertexBuffer(VertexBuffer.UV6Kind).isUpdatable) {
+                if (this.isVertexBufferUpdatable(VertexBuffer.UV6Kind)) {
                     serializationObject.uv6s._updatable = true;
                 }
             }
 
             if (this.isVerticesDataPresent(VertexBuffer.ColorKind)) {
                 serializationObject.colors = this.toNumberArray(this.getVerticesData(VertexBuffer.ColorKind));
-                if (this.getVertexBuffer(VertexBuffer.ColorKind).isUpdatable) {
+                if (this.isVertexBufferUpdatable(VertexBuffer.ColorKind)) {
                     serializationObject.colors._updatable = true;
                 }
             }
@@ -739,14 +828,14 @@
             if (this.isVerticesDataPresent(VertexBuffer.MatricesIndicesKind)) {
                 serializationObject.matricesIndices = this.toNumberArray(this.getVerticesData(VertexBuffer.MatricesIndicesKind));
                 serializationObject.matricesIndices._isExpanded = true;
-                if (this.getVertexBuffer(VertexBuffer.MatricesIndicesKind).isUpdatable) {
+                if (this.isVertexBufferUpdatable(VertexBuffer.MatricesIndicesKind)) {
                     serializationObject.matricesIndices._updatable = true;
                 }
             }
 
             if (this.isVerticesDataPresent(VertexBuffer.MatricesWeightsKind)) {
                 serializationObject.matricesWeights = this.toNumberArray(this.getVerticesData(VertexBuffer.MatricesWeightsKind));
-                if (this.getVertexBuffer(VertexBuffer.MatricesWeightsKind).isUpdatable) {
+                if (this.isVertexBufferUpdatable(VertexBuffer.MatricesWeightsKind)) {
                     serializationObject.matricesWeights._updatable = true;
                 }
             }
@@ -757,7 +846,7 @@
         }
 
         // Statics
-        public static ExtractFromMesh(mesh: Mesh, id: string): Geometry {
+        public static ExtractFromMesh(mesh: Mesh, id: string): Nullable<Geometry> {
             var geometry = mesh._geometry;
 
             if (!geometry) {
@@ -848,7 +937,7 @@
 
                 if (binaryInfo.indicesAttrDesc && binaryInfo.indicesAttrDesc.count > 0) {
                     var indicesData = new Int32Array(parsedGeometry, binaryInfo.indicesAttrDesc.offset, binaryInfo.indicesAttrDesc.count);
-                    mesh.setIndices(indicesData);
+                    mesh.setIndices(indicesData, null);
                 }
 
                 if (binaryInfo.subMeshesAttrDesc && binaryInfo.subMeshesAttrDesc.count > 0) {
@@ -862,7 +951,7 @@
                         var indexStart = subMeshesData[(i * 5) + 3];
                         var indexCount = subMeshesData[(i * 5) + 4];
 
-                        var subMesh = new SubMesh(materialIndex, verticesStart, verticesCount, indexStart, indexCount, mesh);
+                        SubMesh.AddToMesh(materialIndex, verticesStart, verticesCount, indexStart, indexCount, <AbstractMesh>mesh);
                     }
                 }
             } else if (parsedGeometry.positions && parsedGeometry.normals && parsedGeometry.indices) {
@@ -939,6 +1028,7 @@
                 }
 
                 if (parsedGeometry.matricesWeights) {
+                    Geometry._CleanMatricesWeights(parsedGeometry, mesh);
                     mesh.setVerticesData(VertexBuffer.MatricesWeightsKind, parsedGeometry.matricesWeights, parsedGeometry.matricesWeights._updatable);
                 }
 
@@ -946,7 +1036,7 @@
                     mesh.setVerticesData(VertexBuffer.MatricesWeightsExtraKind, parsedGeometry.matricesWeightsExtra, parsedGeometry.matricesWeights._updatable);
                 }
 
-                mesh.setIndices(parsedGeometry.indices);
+                mesh.setIndices(parsedGeometry.indices, null);
             }
 
             // SubMeshes
@@ -955,7 +1045,7 @@
                 for (var subIndex = 0; subIndex < parsedGeometry.subMeshes.length; subIndex++) {
                     var parsedSubMesh = parsedGeometry.subMeshes[subIndex];
 
-                    var subMesh = new SubMesh(parsedSubMesh.materialIndex, parsedSubMesh.verticesStart, parsedSubMesh.verticesCount, parsedSubMesh.indexStart, parsedSubMesh.indexCount, mesh);
+                    SubMesh.AddToMesh(parsedSubMesh.materialIndex, parsedSubMesh.verticesStart, parsedSubMesh.verticesCount, parsedSubMesh.indexStart, parsedSubMesh.indexCount, <AbstractMesh>mesh);
                 }
             }
 
@@ -970,16 +1060,88 @@
 
             // Octree
             if (scene['_selectionOctree']) {
-                scene['_selectionOctree'].addMesh(mesh);
+                scene['_selectionOctree'].addMesh(<AbstractMesh>mesh);
             }
         }
 
-        public static Parse(parsedVertexData: any, scene: Scene, rootUrl: string): Geometry {
+        private static _CleanMatricesWeights(parsedGeometry: any, mesh: Mesh): void {
+            const epsilon: number = 1e-3;
+            if (!SceneLoader.CleanBoneMatrixWeights) {
+                return;
+            }
+            let noInfluenceBoneIndex = 0.0;
+            if (parsedGeometry.skeletonId > -1) {
+                let skeleton = mesh.getScene().getLastSkeletonByID(parsedGeometry.skeletonId);
+
+                if (!skeleton) {
+                    return;
+                }
+                noInfluenceBoneIndex = skeleton.bones.length;
+            } else {
+                return;
+            }
+            let matricesIndices = (<FloatArray>mesh.getVerticesData(VertexBuffer.MatricesIndicesKind));
+            let matricesIndicesExtra = (<FloatArray>mesh.getVerticesData(VertexBuffer.MatricesIndicesExtraKind));
+            let matricesWeights = parsedGeometry.matricesWeights;
+            let matricesWeightsExtra = parsedGeometry.matricesWeightsExtra;
+            let influencers = parsedGeometry.numBoneInfluencer;
+            let size = matricesWeights.length;
+
+            for (var i = 0; i < size; i += 4) {
+                let weight = 0.0;
+                let firstZeroWeight = -1;
+                for (var j = 0; j < 4; j++) {
+                    let w = matricesWeights[i + j];
+                    weight += w;
+                    if (w < epsilon && firstZeroWeight < 0) {
+                        firstZeroWeight = j;
+                    }
+                }
+                if (matricesWeightsExtra) {
+                    for (var j = 0; j < 4; j++) {
+                        let w = matricesWeightsExtra[i + j];
+                        weight += w;
+                        if (w < epsilon && firstZeroWeight < 0) {
+                            firstZeroWeight = j + 4;
+                        }
+                    }
+                }
+                if (firstZeroWeight < 0 || firstZeroWeight > (influencers - 1)) {
+                    firstZeroWeight = influencers - 1;
+                }
+                if (weight > epsilon) {
+                    let mweight = 1.0 / weight;
+                    for (var j = 0; j < 4; j++) {
+                        matricesWeights[i + j] *= mweight;
+                    }
+                    if (matricesWeightsExtra) {
+                        for (var j = 0; j < 4; j++) {
+                            matricesWeightsExtra[i + j] *= mweight;
+                        }
+                    }
+                } else {
+                    if (firstZeroWeight >= 4) {
+                        matricesWeightsExtra[i + firstZeroWeight - 4] = 1.0 - weight;
+                        matricesIndicesExtra[i + firstZeroWeight - 4] = noInfluenceBoneIndex;
+                    } else {
+                        matricesWeights[i + firstZeroWeight] = 1.0 - weight;
+                        matricesIndices[i + firstZeroWeight] = noInfluenceBoneIndex;
+                    }
+                }
+            }
+
+            mesh.setVerticesData(VertexBuffer.MatricesIndicesKind, matricesIndices);
+            if (parsedGeometry.matricesWeightsExtra) {
+                mesh.setVerticesData(VertexBuffer.MatricesIndicesExtraKind, matricesIndicesExtra);
+            }
+        }
+
+        public static Parse(parsedVertexData: any, scene: Scene, rootUrl: string): Nullable<Geometry> {
             if (scene.getGeometryByID(parsedVertexData.id)) {
                 return null; // null since geometry could be something else than a box...
             }
 
-            var geometry = new Geometry(parsedVertexData.id, scene);
+            var geometry = new Geometry(parsedVertexData.id, scene, undefined, parsedVertexData.updatable);
 
             if (Tags) {
                 Tags.AddTagsTo(geometry, parsedVertexData.tags);
@@ -1046,8 +1208,8 @@
 
             private _beingRegenerated: boolean;
 
-            constructor(id: string, scene: Scene, private _canBeRegenerated?: boolean, mesh?: Mesh) {
-                super(id, scene, null, false, mesh); // updatable = false to be sure not to update vertices
+            constructor(id: string, scene: Scene, private _canBeRegenerated: boolean = false, mesh: Nullable<Mesh> = null) {
+                super(id, scene, undefined, false, mesh); // updatable = false to be sure not to update vertices
                 this._beingRegenerated = true;
                 this.regenerate();
                 this._beingRegenerated = false;
@@ -1078,7 +1240,7 @@
                 super.setAllVerticesData(vertexData, false);
             }
 
-            public setVerticesData(kind: string, data: number[] | Float32Array, updatable?: boolean): void {
+            public setVerticesData(kind: string, data: FloatArray, updatable?: boolean): void {
                 if (!this._beingRegenerated) {
                     return;
                 }
@@ -1116,13 +1278,13 @@
             }
 
             public copy(id: string): Geometry {
-                return new Ribbon(id, this.getScene(), this.pathArray, this.closeArray, this.closePath, this.offset, this.canBeRegenerated(), null, this.side);
+                return new Ribbon(id, this.getScene(), this.pathArray, this.closeArray, this.closePath, this.offset, this.canBeRegenerated(), undefined, this.side);
             }
         }
 
         export class Box extends _Primitive {
             // Members
-            constructor(id: string, scene: Scene, public size: number, canBeRegenerated?: boolean, mesh?: Mesh, public side: number = Mesh.DEFAULTSIDE) {
+            constructor(id: string, scene: Scene, public size: number, canBeRegenerated?: boolean, mesh: Nullable<Mesh> = null, public side: number = Mesh.DEFAULTSIDE) {
                 super(id, scene, canBeRegenerated, mesh);
             }
 
@@ -1131,7 +1293,7 @@
             }
 
             public copy(id: string): Geometry {
-                return new Box(id, this.getScene(), this.size, this.canBeRegenerated(), null, this.side);
+                return new Box(id, this.getScene(), this.size, this.canBeRegenerated(), undefined, this.side);
             }
 
             public serialize(): any {
@@ -1142,7 +1304,7 @@
                 return serializationObject;
             }
 
-            public static Parse(parsedBox: any, scene: Scene): Box {
+            public static Parse(parsedBox: any, scene: Scene): Nullable<Box> {
                 if (scene.getGeometryByID(parsedBox.id)) {
                     return null; // null since geometry could be something else than a box...
                 }
@@ -1160,7 +1322,7 @@
 
         export class Sphere extends _Primitive {
 
-            constructor(id: string, scene: Scene, public segments: number, public diameter: number, canBeRegenerated?: boolean, mesh?: Mesh, public side: number = Mesh.DEFAULTSIDE) {
+            constructor(id: string, scene: Scene, public segments: number, public diameter: number, canBeRegenerated?: boolean, mesh: Nullable<Mesh> = null, public side: number = Mesh.DEFAULTSIDE) {
                 super(id, scene, canBeRegenerated, mesh);
             }
 
@@ -1181,7 +1343,7 @@
                 return serializationObject;
             }
 
-            public static Parse(parsedSphere: any, scene: Scene): Geometry.Primitives.Sphere {
+            public static Parse(parsedSphere: any, scene: Scene): Nullable<Geometry.Primitives.Sphere> {
                 if (scene.getGeometryByID(parsedSphere.id)) {
                     return null; // null since geometry could be something else than a sphere...
                 }
@@ -1200,7 +1362,7 @@
         export class Disc extends _Primitive {
             // Members
 
-            constructor(id: string, scene: Scene, public radius: number, public tessellation: number, canBeRegenerated?: boolean, mesh?: Mesh, public side: number = Mesh.DEFAULTSIDE) {
+            constructor(id: string, scene: Scene, public radius: number, public tessellation: number, canBeRegenerated?: boolean, mesh: Nullable<Mesh> = null, public side: number = Mesh.DEFAULTSIDE) {
                 super(id, scene, canBeRegenerated, mesh);
             }
 
@@ -1216,7 +1378,7 @@
 
         export class Cylinder extends _Primitive {
 
-            constructor(id: string, scene: Scene, public height: number, public diameterTop: number, public diameterBottom: number, public tessellation: number, public subdivisions: number = 1, canBeRegenerated?: boolean, mesh?: Mesh, public side: number = Mesh.DEFAULTSIDE) {
+            constructor(id: string, scene: Scene, public height: number, public diameterTop: number, public diameterBottom: number, public tessellation: number, public subdivisions: number = 1, canBeRegenerated?: boolean, mesh: Nullable<Mesh> = null, public side: number = Mesh.DEFAULTSIDE) {
                 super(id, scene, canBeRegenerated, mesh);
             }
 
@@ -1239,7 +1401,7 @@
                 return serializationObject;
             }
 
-            public static Parse(parsedCylinder: any, scene: Scene): Geometry.Primitives.Cylinder {
+            public static Parse(parsedCylinder: any, scene: Scene): Nullable<Geometry.Primitives.Cylinder> {
                 if (scene.getGeometryByID(parsedCylinder.id)) {
                     return null; // null since geometry could be something else than a cylinder...
                 }
@@ -1257,7 +1419,7 @@
 
         export class Torus extends _Primitive {
 
-            constructor(id: string, scene: Scene, public diameter: number, public thickness: number, public tessellation: number, canBeRegenerated?: boolean, mesh?: Mesh, public side: number = Mesh.DEFAULTSIDE) {
+            constructor(id: string, scene: Scene, public diameter: number, public thickness: number, public tessellation: number, canBeRegenerated?: boolean, mesh: Nullable<Mesh> = null, public side: number = Mesh.DEFAULTSIDE) {
                 super(id, scene, canBeRegenerated, mesh);
             }
 
@@ -1279,7 +1441,7 @@
                 return serializationObject;
             }
 
-            public static Parse(parsedTorus: any, scene: Scene): Geometry.Primitives.Torus {
+            public static Parse(parsedTorus: any, scene: Scene): Nullable<Geometry.Primitives.Torus> {
                 if (scene.getGeometryByID(parsedTorus.id)) {
                     return null; // null since geometry could be something else than a torus...
                 }
@@ -1297,7 +1459,7 @@
 
         export class Ground extends _Primitive {
 
-            constructor(id: string, scene: Scene, public width: number, public height: number, public subdivisions: number, canBeRegenerated?: boolean, mesh?: Mesh) {
+            constructor(id: string, scene: Scene, public width: number, public height: number, public subdivisions: number, canBeRegenerated?: boolean, mesh: Nullable<Mesh> = null) {
                 super(id, scene, canBeRegenerated, mesh);
             }
 
@@ -1319,7 +1481,7 @@
                 return serializationObject;
             }
 
-            public static Parse(parsedGround: any, scene: Scene): Geometry.Primitives.Ground {
+            public static Parse(parsedGround: any, scene: Scene): Nullable<Geometry.Primitives.Ground> {
                 if (scene.getGeometryByID(parsedGround.id)) {
                     return null; // null since geometry could be something else than a ground...
                 }
@@ -1337,7 +1499,7 @@
 
         export class TiledGround extends _Primitive {
 
-            constructor(id: string, scene: Scene, public xmin: number, public zmin: number, public xmax: number, public zmax: number, public subdivisions: { w: number; h: number; }, public precision: { w: number; h: number; }, canBeRegenerated?: boolean, mesh?: Mesh) {
+            constructor(id: string, scene: Scene, public xmin: number, public zmin: number, public xmax: number, public zmax: number, public subdivisions: { w: number; h: number; }, public precision: { w: number; h: number; }, canBeRegenerated?: boolean, mesh: Nullable<Mesh> = null) {
                 super(id, scene, canBeRegenerated, mesh);
             }
 
@@ -1352,7 +1514,7 @@
 
         export class Plane extends _Primitive {
 
-            constructor(id: string, scene: Scene, public size: number, canBeRegenerated?: boolean, mesh?: Mesh, public side: number = Mesh.DEFAULTSIDE) {
+            constructor(id: string, scene: Scene, public size: number, canBeRegenerated?: boolean, mesh: Nullable<Mesh> = null, public side: number = Mesh.DEFAULTSIDE) {
                 super(id, scene, canBeRegenerated, mesh);
             }
 
@@ -1372,7 +1534,7 @@
                 return serializationObject;
             }
 
-            public static Parse(parsedPlane: any, scene: Scene): Geometry.Primitives.Plane {
+            public static Parse(parsedPlane: any, scene: Scene): Nullable<Geometry.Primitives.Plane> {
                 if (scene.getGeometryByID(parsedPlane.id)) {
                     return null; // null since geometry could be something else than a ground...
                 }
@@ -1390,7 +1552,7 @@
 
         export class TorusKnot extends _Primitive {
 
-            constructor(id: string, scene: Scene, public radius: number, public tube: number, public radialSegments: number, public tubularSegments: number, public p: number, public q: number, canBeRegenerated?: boolean, mesh?: Mesh, public side: number = Mesh.DEFAULTSIDE) {
+            constructor(id: string, scene: Scene, public radius: number, public tube: number, public radialSegments: number, public tubularSegments: number, public p: number, public q: number, canBeRegenerated?: boolean, mesh: Nullable<Mesh> = null, public side: number = Mesh.DEFAULTSIDE) {
                 super(id, scene, canBeRegenerated, mesh);
             }
 
@@ -1415,7 +1577,7 @@
                 return serializationObject;
             };
 
-            public static Parse(parsedTorusKnot: any, scene: Scene): Geometry.Primitives.TorusKnot {
+            public static Parse(parsedTorusKnot: any, scene: Scene): Nullable<Geometry.Primitives.TorusKnot> {
                 if (scene.getGeometryByID(parsedTorusKnot.id)) {
                     return null; // null since geometry could be something else than a ground...
                 }

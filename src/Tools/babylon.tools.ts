@@ -6,7 +6,7 @@
     // Screenshots
     var screenshotCanvas: HTMLCanvasElement;
 
-    var cloneValue = (source, destinationObject) => {
+    var cloneValue = (source: any, destinationObject: any) => {
         if (!source)
             return null;
 
@@ -24,11 +24,24 @@
 
     export class Tools {
         public static BaseUrl = "";
-        public static CorsBehavior: any = "anonymous";
+
+        /**
+         * Default behaviour for cors in the application.
+         * It can be a string if the expected behavior is identical in the entire app.
+         * Or a callback to be able to set it per url or on a group of them (in case of Video source for instance)
+         */
+        public static CorsBehavior: string | ((url: string | string[]) => string) = "anonymous";
+
         public static UseFallbackTexture = true;
 
+        /**
+         * Use this object to register external classes like custom textures or material 
+         * to allow the laoders to instantiate them
+         */
+        public static RegisteredExternalClasses: { [key: string]: Object } = {};
+
         // Used in case of a texture loading problem 
-        private static fallbackTexture = "data:image/jpg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/4QBmRXhpZgAATU0AKgAAAAgABAEaAAUAAAABAAAAPgEbAAUAAAABAAAARgEoAAMAAAABAAIAAAExAAIAAAAQAAAATgAAAAAAAABgAAAAAQAAAGAAAAABcGFpbnQubmV0IDQuMC41AP/bAEMABAIDAwMCBAMDAwQEBAQFCQYFBQUFCwgIBgkNCw0NDQsMDA4QFBEODxMPDAwSGBITFRYXFxcOERkbGRYaFBYXFv/bAEMBBAQEBQUFCgYGChYPDA8WFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFv/AABEIAQABAAMBIgACEQEDEQH/xAAfAAABBQEBAQEBAQAAAAAAAAAAAQIDBAUGBwgJCgv/xAC1EAACAQMDAgQDBQUEBAAAAX0BAgMABBEFEiExQQYTUWEHInEUMoGRoQgjQrHBFVLR8CQzYnKCCQoWFxgZGiUmJygpKjQ1Njc4OTpDREVGR0hJSlNUVVZXWFlaY2RlZmdoaWpzdHV2d3h5eoOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4eLj5OXm5+jp6vHy8/T19vf4+fr/xAAfAQADAQEBAQEBAQEBAAAAAAAAAQIDBAUGBwgJCgv/xAC1EQACAQIEBAMEBwUEBAABAncAAQIDEQQFITEGEkFRB2FxEyIygQgUQpGhscEJIzNS8BVictEKFiQ04SXxFxgZGiYnKCkqNTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqCg4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2dri4+Tl5ufo6ery8/T19vf4+fr/2gAMAwEAAhEDEQA/APH6KKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FCiiigD6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++gooooA+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gUKKKKAPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76CiiigD5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BQooooA+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/voKKKKAPl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FCiiigD6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++gooooA+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gUKKKKAPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76CiiigD5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BQooooA+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/voKKKKAPl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FCiiigD6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++gooooA+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gUKKKKAPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76P//Z";;
+        public static fallbackTexture = "data:image/jpg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/4QBmRXhpZgAATU0AKgAAAAgABAEaAAUAAAABAAAAPgEbAAUAAAABAAAARgEoAAMAAAABAAIAAAExAAIAAAAQAAAATgAAAAAAAABgAAAAAQAAAGAAAAABcGFpbnQubmV0IDQuMC41AP/bAEMABAIDAwMCBAMDAwQEBAQFCQYFBQUFCwgIBgkNCw0NDQsMDA4QFBEODxMPDAwSGBITFRYXFxcOERkbGRYaFBYXFv/bAEMBBAQEBQUFCgYGChYPDA8WFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFv/AABEIAQABAAMBIgACEQEDEQH/xAAfAAABBQEBAQEBAQAAAAAAAAAAAQIDBAUGBwgJCgv/xAC1EAACAQMDAgQDBQUEBAAAAX0BAgMABBEFEiExQQYTUWEHInEUMoGRoQgjQrHBFVLR8CQzYnKCCQoWFxgZGiUmJygpKjQ1Njc4OTpDREVGR0hJSlNUVVZXWFlaY2RlZmdoaWpzdHV2d3h5eoOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4eLj5OXm5+jp6vHy8/T19vf4+fr/xAAfAQADAQEBAQEBAQEBAAAAAAAAAQIDBAUGBwgJCgv/xAC1EQACAQIEBAMEBwUEBAABAncAAQIDEQQFITEGEkFRB2FxEyIygQgUQpGhscEJIzNS8BVictEKFiQ04SXxFxgZGiYnKCkqNTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqCg4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2dri4+Tl5ufo6ery8/T19vf4+fr/2gAMAwEAAhEDEQA/APH6KKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FCiiigD6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++gooooA+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gUKKKKAPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76CiiigD5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BQooooA+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/voKKKKAPl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FCiiigD6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++gooooA+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gUKKKKAPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76CiiigD5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BQooooA+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/voKKKKAPl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FCiiigD6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++gooooA+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gUKKKKAPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76Pl+iiivuj+BT6gooor4U/vo+X6KKK+6P4FPqCiiivhT++j5fooor7o/gU+oKKKK+FP76P//Z";
 
         /**
 		 * Interpolates between a and b via alpha
@@ -37,14 +50,18 @@
 		 * @param alpha The interpolation-factor
 		 * @return The mixed value
 		 */
-		public static Mix(a: number, b: number, alpha: number): number {
-			return a * (1 - alpha) + b * alpha;
-		}
+        public static Mix(a: number, b: number, alpha: number): number {
+            return a * (1 - alpha) + b * alpha;
+        }
 
         public static Instantiate(className: string): any {
+            if (Tools.RegisteredExternalClasses && Tools.RegisteredExternalClasses[className]) {
+                return Tools.RegisteredExternalClasses[className];
+            }
+
             var arr = className.split(".");
 
-            var fn = (window || this);
+            var fn: any = (window || this);
             for (var i = 0, len = arr.length; i < len; i++) {
                 fn = fn[arr[i]];
             }
@@ -79,41 +96,41 @@
 		 * @param x Number to start search from.
 		 * @return Next highest power of two.
 		 */
-		public static CeilingPOT(x: number): number {
-			x--;
-			x |= x >> 1;
-			x |= x >> 2;
-			x |= x >> 4;
-			x |= x >> 8;
-			x |= x >> 16;
-			x++;
-			return x;
-		}
+        public static CeilingPOT(x: number): number {
+            x--;
+            x |= x >> 1;
+            x |= x >> 2;
+            x |= x >> 4;
+            x |= x >> 8;
+            x |= x >> 16;
+            x++;
+            return x;
+        }
 
 		/**
 		 * Find the next lowest power of two.
 		 * @param x Number to start search from.
 		 * @return Next lowest power of two.
 		 */
-		public static FloorPOT(x: number): number {
-			x = x | (x >> 1);
-			x = x | (x >> 2);
-			x = x | (x >> 4);
-			x = x | (x >> 8);
-			x = x | (x >> 16);
-			return x - (x >> 1);
-		}
+        public static FloorPOT(x: number): number {
+            x = x | (x >> 1);
+            x = x | (x >> 2);
+            x = x | (x >> 4);
+            x = x | (x >> 8);
+            x = x | (x >> 16);
+            return x - (x >> 1);
+        }
 
 		/**
 		 * Find the nearest power of two.
 		 * @param x Number to start search from.
 		 * @return Next nearest power of two.
 		 */
-		public static NearestPOT(x: number): number {
-			var c = Tools.CeilingPOT(x);
-			var f = Tools.FloorPOT(x);
-			return (c - x) > (x - f) ? f : c;
-		}        
+        public static NearestPOT(x: number): number {
+            var c = Tools.CeilingPOT(x);
+            var f = Tools.FloorPOT(x);
+            return (c - x) > (x - f) ? f : c;
+        }
 
         public static GetExponentOfTwo(value: number, max: number, mode = Engine.SCALEMODE_NEAREST): number {
             let pot;
@@ -121,16 +138,17 @@
             switch (mode) {
                 case Engine.SCALEMODE_FLOOR:
                     pot = Tools.FloorPOT(value);
-                break;
+                    break;
                 case Engine.SCALEMODE_NEAREST:
                     pot = Tools.NearestPOT(value);
-                break;
+                    break;
                 case Engine.SCALEMODE_CEILING:
+                default:
                     pot = Tools.CeilingPOT(value);
-                break;
+                    break;
             }
 
-            return  Math.min(pot, max);
+            return Math.min(pot, max);
         }
 
         public static GetFilename(path: string): string {
@@ -139,6 +157,14 @@
                 return path;
 
             return path.substring(index + 1);
+        }
+
+        public static GetFolderPath(uri: string): string {
+            var index = uri.lastIndexOf("/");
+            if (index < 0)
+                return "";
+
+            return uri.substring(0, index + 1);
         }
 
         public static GetDOMTextContent(element: HTMLElement): string {
@@ -192,7 +218,7 @@
             return "data:image/png;base64," + output;
         }
 
-        public static ExtractMinAndMaxIndexed(positions: number[] | Float32Array, indices: IndicesArray, indexStart: number, indexCount: number, bias: Vector2 = null): { minimum: Vector3; maximum: Vector3 } {
+        public static ExtractMinAndMaxIndexed(positions: FloatArray, indices: IndicesArray, indexStart: number, indexCount: number, bias: Nullable<Vector2> = null): { minimum: Vector3; maximum: Vector3 } {
             var minimum = new Vector3(Number.MAX_VALUE, Number.MAX_VALUE, Number.MAX_VALUE);
             var maximum = new Vector3(-Number.MAX_VALUE, -Number.MAX_VALUE, -Number.MAX_VALUE);
 
@@ -218,7 +244,7 @@
             };
         }
 
-        public static ExtractMinAndMax(positions: number[] | Float32Array, start: number, count: number, bias: Vector2 = null, stride?: number): { minimum: Vector3; maximum: Vector3 } {
+        public static ExtractMinAndMax(positions: FloatArray, start: number, count: number, bias: Nullable<Vector2> = null, stride?: number): { minimum: Vector3; maximum: Vector3 } {
             var minimum = new Vector3(Number.MAX_VALUE, Number.MAX_VALUE, Number.MAX_VALUE);
             var maximum = new Vector3(-Number.MAX_VALUE, -Number.MAX_VALUE, -Number.MAX_VALUE);
 
@@ -248,7 +274,7 @@
             };
         }
 
-        public static Vector2ArrayFeeder(array: Array<Vector2> | Float32Array): (i: number) => Vector2 {
+        public static Vector2ArrayFeeder(array: Array<Vector2> | Float32Array): (i: number) => Nullable<Vector2> {
             return (index: number) => {
                 let isFloatArray = ((<Float32Array>array).BYTES_PER_ELEMENT !== undefined);
                 let length = isFloatArray ? array.length / 2 : array.length;
@@ -266,7 +292,7 @@
             };
         }
 
-        public static ExtractMinAndMaxVector2(feeder: (index: number) => Vector2, bias: Vector2 = null): { minimum: Vector2; maximum: Vector2 } {
+        public static ExtractMinAndMaxVector2(feeder: (index: number) => Vector2, bias: Nullable<Vector2> = null): { minimum: Vector2; maximum: Vector2 } {
             var minimum = new Vector2(Number.MAX_VALUE, Number.MAX_VALUE);
             var maximum = new Vector2(-Number.MAX_VALUE, -Number.MAX_VALUE);
 
@@ -292,9 +318,9 @@
             };
         }
 
-        public static MakeArray(obj, allowsNullUndefined?: boolean): Array<any> {
+        public static MakeArray(obj: any, allowsNullUndefined?: boolean): Nullable<Array<any>> {
             if (allowsNullUndefined !== true && (obj === undefined || obj == null))
-                return undefined;
+                return null;
 
             return Array.isArray(obj) ? obj : [obj];
         }
@@ -304,7 +330,7 @@
             var eventPrefix = "pointer";
 
             // Check if pointer events are supported
-            if (!window.PointerEvent && !navigator.pointerEnabled) {
+            if (Tools.IsWindowObjectExist() && !window.PointerEvent && !navigator.pointerEnabled) {
                 eventPrefix = "mouse";
             }
 
@@ -315,27 +341,37 @@
          * @param func - the function to be called
          * @param requester - the object that will request the next frame. Falls back to window.
          */
-        public static QueueNewFrame(func, requester: any = window): void {
-            //if WebVR is enabled AND presenting, requestAnimationFrame is triggered when enabled.
-            /*if(requester.isPresenting) {
-                return;
-            } else*/ if (requester.requestAnimationFrame)
-                requester.requestAnimationFrame(func);
-            else if (requester.msRequestAnimationFrame)
-                requester.msRequestAnimationFrame(func);
-            else if (requester.webkitRequestAnimationFrame)
-                requester.webkitRequestAnimationFrame(func);
-            else if (requester.mozRequestAnimationFrame)
-                requester.mozRequestAnimationFrame(func);
-            else if (requester.oRequestAnimationFrame)
-                requester.oRequestAnimationFrame(func);
+        public static QueueNewFrame(func: () => void, requester?: any): number {
+            if (!Tools.IsWindowObjectExist()) {
+                return setTimeout(func, 16);
+            }
+
+            if (!requester) {
+                requester = window;
+            }
+
+            if (requester.requestAnimationFrame) {
+                return requester.requestAnimationFrame(func);
+            }
+            else if (requester.msRequestAnimationFrame) {
+                return requester.msRequestAnimationFrame(func);
+            }
+            else if (requester.webkitRequestAnimationFrame) {
+                return requester.webkitRequestAnimationFrame(func);
+            }
+            else if (requester.mozRequestAnimationFrame) {
+                return requester.mozRequestAnimationFrame(func);
+            }
+            else if (requester.oRequestAnimationFrame) {
+                return requester.oRequestAnimationFrame(func);
+            }
             else {
-                window.setTimeout(func, 16);
+                return window.setTimeout(func, 16);
             }
         }
 
-        public static RequestFullscreen(element): void {
-            var requestFunction = element.requestFullscreen || element.msRequestFullscreen || element.webkitRequestFullscreen || element.mozRequestFullScreen;
+        public static RequestFullscreen(element: HTMLElement): void {
+            var requestFunction = element.requestFullscreen || (<any>element).msRequestFullscreen || element.webkitRequestFullscreen || (<any>element).mozRequestFullScreen;
             if (!requestFunction) return;
             requestFunction.call(element);
         }
@@ -355,19 +391,20 @@
             }
         }
 
-        public static SetCorsBehavior(url: string, img: HTMLImageElement): void {
+        public static SetCorsBehavior(url: string | string[], element: { crossOrigin: string | null }): void {
+            if (url && url.indexOf("data:") === 0) {
+                return;
+            }
+
             if (Tools.CorsBehavior) {
-                switch (typeof (Tools.CorsBehavior)) {
-                    case "function":
-                        var result = Tools.CorsBehavior(url);
-                        if (result) {
-                            img.crossOrigin = result;
-                        }
-                        break;
-                    case "string":
-                    default:
-                        img.crossOrigin = Tools.CorsBehavior;
-                        break;
+                if (typeof(Tools.CorsBehavior) === 'string' || Tools.CorsBehavior instanceof String) {
+                    element.crossOrigin = <string>Tools.CorsBehavior;
+                }
+                else {
+                    var result = Tools.CorsBehavior(url);
+                    if (result) {
+                        element.crossOrigin = result;
+                    }
                 }
             }
         }
@@ -378,31 +415,31 @@
             return url;
         }
 
-        public static LoadImage(url: any, onload, onerror, database): HTMLImageElement {
+        public static PreprocessUrl = (url: string) => {
+            return url;
+        }
+
+        public static LoadImage(url: any, onLoad: (img: HTMLImageElement) => void, onError: (message?: string, exception?: any) => void, database: Nullable<Database>): HTMLImageElement {
             if (url instanceof ArrayBuffer) {
                 url = Tools.EncodeArrayBufferTobase64(url);
             }
 
             url = Tools.CleanUrl(url);
 
-            var img = new Image();
+            url = Tools.PreprocessUrl(url);
 
-            if (url.substr(0, 5) !== "data:") {
-                Tools.SetCorsBehavior(url, img);
-            }
+            var img = new Image();
+            Tools.SetCorsBehavior(url, img);
 
             img.onload = () => {
-                onload(img);
+                onLoad(img);
             };
 
             img.onerror = err => {
                 Tools.Error("Error while trying to load image: " + url);
 
-                if (Tools.UseFallbackTexture) {
-                    img.src = Tools.fallbackTexture;
-                    onload(img);
-                } else {
-                    onerror();
+                if (onError) {
+                    onError("Error while trying to load image: " + url, err);
                 }
             };
 
@@ -411,7 +448,9 @@
             };
 
             var loadFromIndexedDB = () => {
-                database.loadImageFromDB(url, img);
+                if (database) {
+                    database.loadImageFromDB(url, img);
+                }
             };
 
 
@@ -420,11 +459,8 @@
                 database.openAsync(loadFromIndexedDB, noIndexedDB);
             }
             else {
-                if (url.indexOf("file:") !== 0) {
-                    noIndexedDB();
-                }
-                else {
-                    var textureName = url.substring(5).toLowerCase();
+                if (url.indexOf("file:") !== -1) {
+                    var textureName = decodeURIComponent(url.substring(5).toLowerCase());
                     if (FilesInput.FilesToLoad[textureName]) {
                         try {
                             var blobURL;
@@ -438,25 +474,27 @@
                             img.src = blobURL;
                         }
                         catch (e) {
-                            img.src = null;
+                            img.src = "";
                         }
-                    }
-                    else {
-                        Tools.Error("Image: " + textureName + " not found. Did you forget to provide it?");
-                        img.src = Tools.fallbackTexture;
+                        return img;
                     }
                 }
+
+                noIndexedDB();
             }
 
             return img;
         }
 
-        //ANY
-        public static LoadFile(url: string, callback: (data: any) => void, progressCallBack?: (data: any) => void, database?, useArrayBuffer?: boolean, onError?: (request: XMLHttpRequest) => void): void {
+        public static LoadFile(url: string, callback: (data: string | ArrayBuffer, responseURL?: string) => void, progressCallBack?: (data: any) => void, database?: Database, useArrayBuffer?: boolean, onError?: (request?: XMLHttpRequest, exception?: any) => void): Nullable<XMLHttpRequest> {
             url = Tools.CleanUrl(url);
 
+            url = Tools.PreprocessUrl(url);
+
+            var request: Nullable<XMLHttpRequest> = null;
+
             var noIndexedDB = () => {
-                var request = new XMLHttpRequest();
+                request = new XMLHttpRequest();
                 var loadUrl = Tools.BaseUrl + url;
                 request.open('GET', loadUrl, true);
 
@@ -464,21 +502,24 @@
                     request.responseType = "arraybuffer";
                 }
 
-                request.onprogress = progressCallBack;
+                if (progressCallBack) {
+                    request.onprogress = progressCallBack;
+                }
 
                 request.onreadystatechange = () => {
+                    let req = <XMLHttpRequest>request;
                     // In case of undefined state in some browsers.
-                    if (request.readyState === (XMLHttpRequest.DONE || 4)) {
-                        request.onreadystatechange = null;//some browsers have issues where onreadystatechange can be called multiple times with the same value
+                    if (req.readyState === (XMLHttpRequest.DONE || 4)) {
+                        req.onreadystatechange = () => { };//some browsers have issues where onreadystatechange can be called multiple times with the same value
 
-                        if (request.status >= 200 && request.status < 300 || (request.status === 0)) {
-                            callback(!useArrayBuffer ? request.responseText : request.response);
+                        if (req.status >= 200 && req.status < 300 || (!Tools.IsWindowObjectExist() && (req.status === 0))) {
+                            callback(!useArrayBuffer ? req.responseText : <ArrayBuffer>req.response, req.responseURL);
                         } else { // Failed
+                            let e = new Error("Error status: " + req.status + " - Unable to load " + loadUrl);
                             if (onError) {
-                                onError(request);
+                                onError(req, e);
                             } else {
-
-                                throw new Error("Error status: " + request.status + " - Unable to load " + loadUrl);
+                                throw e;
                             }
                         }
                     }
@@ -488,66 +529,67 @@
             };
 
             var loadFromIndexedDB = () => {
-                database.loadFileFromDB(url, callback, progressCallBack, noIndexedDB, useArrayBuffer);
+                if (database) {
+                    database.loadFileFromDB(url, callback, progressCallBack, noIndexedDB, useArrayBuffer);
+                }
             };
 
+            // If file and file input are set
             if (url.indexOf("file:") !== -1) {
-                var fileName = url.substring(5).toLowerCase();
+                var fileName = decodeURIComponent(url.substring(5).toLowerCase());
                 if (FilesInput.FilesToLoad[fileName]) {
                     Tools.ReadFile(FilesInput.FilesToLoad[fileName], callback, progressCallBack, useArrayBuffer);
+                    return request;
                 }
-                else {
-                    Tools.Error("File: " + fileName + " not found. Did you forget to provide it?");
-                }
+            }
+
+            // Caching all files
+            if (database && database.enableSceneOffline) {
+                database.openAsync(loadFromIndexedDB, noIndexedDB);
             }
             else {
-                // Caching all files
-                if (database && database.enableSceneOffline) {
-                    database.openAsync(loadFromIndexedDB, noIndexedDB);
-                }
-                else {
-                    noIndexedDB();
-                }
+                noIndexedDB();
             }
+
+            return request;
         }
 
         /** 
          * Load a script (identified by an url). When the url returns, the 
          * content of this file is added into a new script element, attached to the DOM (body element)
          */
-        public static LoadScript(scriptUrl:string, onSuccess: () => void, onError?: () => void) {
+        public static LoadScript(scriptUrl: string, onSuccess: () => void, onError?: (message?: string, exception?: any) => void) {
             var head = document.getElementsByTagName('head')[0];
             var script = document.createElement('script');
             script.type = 'text/javascript';
             script.src = scriptUrl;
 
-            var self = this;
             script.onload = () => {
                 if (onSuccess) {
                     onSuccess();
                 }
             };
 
-            script.onerror = () => {
+            script.onerror = (e) => {
                 if (onError) {
-                    onError();
+                    onError("Unable to load script", e);
                 }
             };
 
             head.appendChild(script);
         }
 
-        public static ReadFileAsDataURL(fileToLoad, callback, progressCallback): void {
+        public static ReadFileAsDataURL(fileToLoad: Blob, callback: (data: any) => void, progressCallback: (this: MSBaseReader, ev: ProgressEvent) => any): void {
             var reader = new FileReader();
             reader.onload = e => {
                 //target doesn't have result from ts 1.3
-                callback(e.target['result']);
+                callback((<any>e.target)['result']);
             };
             reader.onprogress = progressCallback;
             reader.readAsDataURL(fileToLoad);
         }
 
-        public static ReadFile(fileToLoad, callback, progressCallBack, useArrayBuffer?: boolean): void {
+        public static ReadFile(fileToLoad: File, callback: (data: any) => void, progressCallBack?: (this: MSBaseReader, ev: ProgressEvent) => any, useArrayBuffer?: boolean): void {
             var reader = new FileReader();
             reader.onerror = e => {
                 Tools.Log("Error while reading file: " + fileToLoad.name);
@@ -555,9 +597,12 @@
             };
             reader.onload = e => {
                 //target doesn't have result from ts 1.3
-                callback(e.target['result']);
+                callback((<any>e.target)['result']);
             };
-            reader.onprogress = progressCallBack;
+
+            if (progressCallBack) {
+                reader.onprogress = progressCallBack;
+            }
             if (!useArrayBuffer) {
                 // Asynchronous read
                 reader.readAsText(fileToLoad);
@@ -596,7 +641,7 @@
                 max.z = v.z;
         }
 
-        public static DeepCopy(source, destination, doNotCopyList?: string[], mustCopyList?: string[]): void {
+        public static DeepCopy(source: any, destination: any, doNotCopyList?: string[], mustCopyList?: string[]): void {
             for (var prop in source) {
 
                 if (prop[0] === "_" && (!mustCopyList || mustCopyList.indexOf(prop) === -1)) {
@@ -639,21 +684,23 @@
             }
         }
 
-        public static IsEmpty(obj): boolean {
+        public static IsEmpty(obj: any): boolean {
             for (var i in obj) {
-                return false;
+                if (obj.hasOwnProperty(i)) {
+                    return false;
+                }
             }
             return true;
         }
 
-        public static RegisterTopRootEvents(events: { name: string; handler: EventListener }[]): void {
+        public static RegisterTopRootEvents(events: { name: string; handler: Nullable<(e: FocusEvent) => any> }[]): void {
             for (var index = 0; index < events.length; index++) {
                 var event = events[index];
-                window.addEventListener(event.name, event.handler, false);
+                window.addEventListener(event.name, <any>event.handler, false);
 
                 try {
                     if (window.parent) {
-                        window.parent.addEventListener(event.name, event.handler, false);
+                        window.parent.addEventListener(event.name, <any>event.handler, false);
                     }
                 } catch (e) {
                     // Silently fails...
@@ -661,14 +708,14 @@
             }
         }
 
-        public static UnregisterTopRootEvents(events: { name: string; handler: EventListener }[]): void {
+        public static UnregisterTopRootEvents(events: { name: string; handler: Nullable<(e: FocusEvent) => any> }[]): void {
             for (var index = 0; index < events.length; index++) {
                 var event = events[index];
-                window.removeEventListener(event.name, event.handler);
+                window.removeEventListener(event.name, <any>event.handler);
 
                 try {
                     if (window.parent) {
-                        window.parent.removeEventListener(event.name, event.handler);
+                        window.parent.removeEventListener(event.name, <any>event.handler);
                     }
                 } catch (e) {
                     // Silently fails...
@@ -676,7 +723,7 @@
             }
         }
 
-        public static DumpFramebuffer(width: number, height: number, engine: Engine, successCallback?: (data: string) => void, mimeType: string = "image/png"): void {
+        public static DumpFramebuffer(width: number, height: number, engine: Engine, successCallback?: (data: string) => void, mimeType: string = "image/png", fileName?: string): void {
             // Read the contents of the framebuffer
             var numberOfChannelsByLine = width * 4;
             var halfHeight = height / 2;
@@ -705,43 +752,74 @@
             screenshotCanvas.height = height;
             var context = screenshotCanvas.getContext('2d');
 
-            // Copy the pixels to a 2D canvas
-            var imageData = context.createImageData(width, height);
-            var castData = <any>(imageData.data);
-            castData.set(data);
-            context.putImageData(imageData, 0, 0);
+            if (context) {
+                // Copy the pixels to a 2D canvas
+                var imageData = context.createImageData(width, height);
+                var castData = <any>(imageData.data);
+                castData.set(data);
+                context.putImageData(imageData, 0, 0);
 
-            Tools.EncodeScreenshotCanvasData(successCallback, mimeType);
+                Tools.EncodeScreenshotCanvasData(successCallback, mimeType, fileName);
+            }
         }
 
-        static EncodeScreenshotCanvasData(successCallback?: (data: string) => void, mimeType: string = "image/png") {
+        static EncodeScreenshotCanvasData(successCallback?: (data: string) => void, mimeType: string = "image/png", fileName?: string) {
             var base64Image = screenshotCanvas.toDataURL(mimeType);
-
             if (successCallback) {
                 successCallback(base64Image);
-            } else {
-                //Creating a link if the browser have the download attribute on the a tag, to automatically start download generated image.
-                if (("download" in document.createElement("a"))) {
-                    var a = window.document.createElement("a");
-                    a.href = base64Image;
-                    var date = new Date();
-                    var stringDate = (date.getFullYear() + "-" + (date.getMonth() + 1)).slice(-2) + "-" + date.getDate() + "_" + date.getHours() + "-" + ('0' + date.getMinutes()).slice(-2);
-                    a.setAttribute("download", "screenshot_" + stringDate + ".png");
+            }
+            else {
+                // We need HTMLCanvasElement.toBlob for HD screenshots
+                if (!screenshotCanvas.toBlob) {
+                    //  low performance polyfill based on toDataURL (https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/toBlob)
+                    screenshotCanvas.toBlob = function (callback, type, quality) {
+                        setTimeout(() => {
+                            var binStr = atob(this.toDataURL(type, quality).split(',')[1]),
+                                len = binStr.length,
+                                arr = new Uint8Array(len);
 
-                    window.document.body.appendChild(a);
-
-                    a.addEventListener("click", () => {
-                        a.parentElement.removeChild(a);
-                    });
-                    a.click();
-
-                    //Or opening a new tab with the image if it is not possible to automatically start download.
-                } else {
-                    var newWindow = window.open("");
-                    var img = newWindow.document.createElement("img");
-                    img.src = base64Image;
-                    newWindow.document.body.appendChild(img);
+                            for (var i = 0; i < len; i++) {
+                                arr[i] = binStr.charCodeAt(i);
+                            }
+                            callback(new Blob([arr], { type: type || 'image/png' }));
+                        });
+                    }
                 }
+                screenshotCanvas.toBlob(function (blob) {
+                    var url = URL.createObjectURL(blob);
+                    //Creating a link if the browser have the download attribute on the a tag, to automatically start download generated image.
+                    if (("download" in document.createElement("a"))) {
+                        var a = window.document.createElement("a");
+                        a.href = url;
+                        if (fileName) {
+                            a.setAttribute("download", fileName);
+                        }
+                        else {
+                            var date = new Date();
+                            var stringDate = (date.getFullYear() + "-" + (date.getMonth() + 1)).slice(-2) + "-" + date.getDate() + "_" + date.getHours() + "-" + ('0' + date.getMinutes()).slice(-2);
+                            a.setAttribute("download", "screenshot_" + stringDate + ".png");
+                        }
+                        window.document.body.appendChild(a);
+                        a.addEventListener("click", () => {
+                            if (a.parentElement) {
+                                a.parentElement.removeChild(a);
+                            }
+                        });
+                        a.click();
+                    }
+                    else {
+                        var newWindow = window.open("");
+                        if (!newWindow) return;
+                        var img = newWindow.document.createElement("img");
+                        img.onload = function () {
+                            // no longer need to read the blob so it's revoked
+                            URL.revokeObjectURL(url);
+                        };
+                        img.src = url;
+                        newWindow.document.body.appendChild(img);
+                    }
+
+                });
             }
         }
 
@@ -781,7 +859,7 @@
             if (!screenshotCanvas) {
                 screenshotCanvas = document.createElement('canvas');
             }
-            
+
             screenshotCanvas.width = width;
             screenshotCanvas.height = height;
 
@@ -798,12 +876,15 @@
             var offsetX = Math.max(0, width - newWidth) / 2;
             var offsetY = Math.max(0, height - newHeight) / 2;
 
-            renderContext.drawImage(engine.getRenderingCanvas(), offsetX, offsetY, newWidth, newHeight);
+            var renderingCanvas = engine.getRenderingCanvas();
+            if (renderContext && renderingCanvas) {
+                renderContext.drawImage(renderingCanvas, offsetX, offsetY, newWidth, newHeight);
+            }
 
             Tools.EncodeScreenshotCanvasData(successCallback, mimeType);
         }
 
-        public static CreateScreenshotUsingRenderTarget(engine: Engine, camera: Camera, size: any, successCallback?: (data: string) => void, mimeType: string = "image/png", samples: number = 1): void {
+        public static CreateScreenshotUsingRenderTarget(engine: Engine, camera: Camera, size: any, successCallback?: (data: string) => void, mimeType: string = "image/png", samples: number = 1, antialiasing: boolean = false, fileName?: string): void {
             var width: number;
             var height: number;
 
@@ -840,7 +921,7 @@
             }
 
             var scene = camera.getScene();
-            var previousCamera: Camera = null;
+            var previousCamera: Nullable<Camera> = null;
 
             if (scene.activeCamera !== camera) {
                 previousCamera = scene.activeCamera;
@@ -849,11 +930,13 @@
 
             //At this point size can be a number, or an object (according to engine.prototype.createRenderTargetTexture method)
             var texture = new RenderTargetTexture("screenShot", size, scene, false, false, Engine.TEXTURETYPE_UNSIGNED_INT, false, Texture.NEAREST_SAMPLINGMODE);
-            texture.renderList = scene.meshes;
+            texture.renderList = null;
             texture.samples = samples;
-
+            if (antialiasing) {
+                texture.addPostProcess(new BABYLON.FxaaPostProcess('antialiasing', 1.0, scene.activeCamera));
+            }
             texture.onAfterRenderObservable.add(() => {
-                Tools.DumpFramebuffer(width, height, engine, successCallback, mimeType);
+                Tools.DumpFramebuffer(width, height, engine, successCallback, mimeType, fileName);
             });
 
             scene.incrementRenderId();
@@ -961,7 +1044,7 @@
         }
 
         private static _FormatMessage(message: string): string {
-            var padStr = i => (i < 10) ? "0" + i : "" + i;
+            var padStr = (i: number) => (i < 10) ? "0" + i : "" + i;
 
             var date = new Date();
             return "[" + padStr(date.getHours()) + ":" + padStr(date.getMinutes()) + ":" + padStr(date.getSeconds()) + "]: " + message;
@@ -1039,12 +1122,16 @@
             }
         }
 
+        public static IsWindowObjectExist(): boolean {
+            return (typeof window) !== "undefined";
+        }
+
         // Performances
         private static _PerformanceNoneLogLevel = 0;
         private static _PerformanceUserMarkLogLevel = 1;
         private static _PerformanceConsoleLogLevel = 2;
 
-        private static _performance: Performance = window.performance;
+        private static _performance: Performance;
 
         static get PerformanceNoneLogLevel(): number {
             return Tools._PerformanceNoneLogLevel;
@@ -1082,6 +1169,13 @@
         }
 
         static _StartUserMark(counterName: string, condition = true): void {
+            if (!Tools._performance) {
+                if (!Tools.IsWindowObjectExist()) {
+                    return;
+                }
+                Tools._performance = window.performance;
+            }
+
             if (!condition || !Tools._performance.mark) {
                 return;
             }
@@ -1124,7 +1218,7 @@
         public static EndPerformanceCounter: (counterName: string, condition?: boolean) => void = Tools._EndPerformanceCounterDisabled;
 
         public static get Now(): number {
-            if (window.performance && window.performance.now) {
+            if (Tools.IsWindowObjectExist() && window.performance && window.performance.now) {
                 return window.performance.now();
             }
 
@@ -1137,7 +1231,7 @@
          * @param object the object to get the class name from
          * @return the name of the class, will be "object" for a custom data type not using the @className decorator
          */
-        public static getClassName(object, isType: boolean = false): string {
+        public static GetClassName(object: any, isType: boolean = false): string {
             let name = null;
 
             if (!isType && object.getClassName) {
@@ -1154,12 +1248,14 @@
             return name;
         }
 
-        public static first<T>(array: Array<T>, predicate: (item: T) => boolean) {
+        public static First<T>(array: Array<T>, predicate: (item: T) => boolean): Nullable<T> {
             for (let el of array) {
                 if (predicate(el)) {
                     return el;
                 }
             }
+
+            return null;
         }
 
         /**
@@ -1168,7 +1264,7 @@
          * @param object the object to get the class name from
          * @return a string that can have two forms: "moduleName.className" if module was specified when the class' Name was registered or "className" if there was not module specified.
          */
-        public static getFullClassName(object, isType: boolean = false): string {
+        public static getFullClassName(object: any, isType: boolean = false): Nullable<string> {
             let className = null;
             let moduleName = null;
 
@@ -1283,6 +1379,10 @@
             return this._totalAccumulated;
         }
 
+        public get count(): number {
+            return this._totalValueCount;
+        }
+
         constructor() {
             this._startMonitoringTime = 0;
             this._min = 0;
@@ -1340,7 +1440,7 @@
             if (!PerfCounter.Enabled) {
                 return;
             }
-                        
+
             if (newFrame) {
                 this.fetchNewFrame();
             }
@@ -1394,8 +1494,8 @@
      */
     export function className(name: string, module?: string): (target: Object) => void {
         return (target: Object) => {
-            target["__bjsclassName__"] = name;
-            target["__bjsmoduleName__"] = (module != null) ? module : null;
+            (<any>target)["__bjsclassName__"] = name;
+            (<any>target)["__bjsmoduleName__"] = (module != null) ? module : null;
         }
     }
 

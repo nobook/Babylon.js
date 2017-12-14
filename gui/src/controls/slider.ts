@@ -1,16 +1,15 @@
 /// <reference path="../../../dist/preview release/babylon.d.ts"/>
 
-var DOMImage = Image;
-
 module BABYLON.GUI {
     export class Slider extends Control {
         private _thumbWidth = new ValueAndUnit(30, ValueAndUnit.UNITMODE_PIXEL, false);
-        private _minimum = 0; 
+        private _minimum = 0;
         private _maximum = 100;
         private _value = 50;
-        private _background = "black";   
+        private _background = "black";
         private _borderColor = "white";
         private _barOffset = new ValueAndUnit(5, ValueAndUnit.UNITMODE_PIXEL, false);
+        private _isThumbCircle = false;
 
         public onValueChangedObservable = new Observable<number>();
 
@@ -25,7 +24,7 @@ module BABYLON.GUI {
 
             this._borderColor = value;
             this._markAsDirty();
-        }  
+        }
 
         public get background(): string {
             return this._background;
@@ -38,13 +37,17 @@ module BABYLON.GUI {
 
             this._background = value;
             this._markAsDirty();
-        }     
+        }
 
-        public get barOffset(): string | number  {
+        public get barOffset(): string | number {
             return this._barOffset.toString(this._host);
         }
 
-        public set barOffset(value: string | number ) {
+        public get barOffsetInPixels(): number {
+            return this._barOffset.getValueInPixel(this._host, this._cachedParentMeasure.width);
+        }
+
+        public set barOffset(value: string | number) {
             if (this._barOffset.toString(this._host) === value) {
                 return;
             }
@@ -52,13 +55,17 @@ module BABYLON.GUI {
             if (this._barOffset.fromString(value)) {
                 this._markAsDirty();
             }
-        }      
+        }
 
-        public get thumbWidth(): string | number  {
+        public get thumbWidth(): string | number {
             return this._thumbWidth.toString(this._host);
         }
 
-        public set thumbWidth(value: string | number ) {
+        public get thumbWidthInPixels(): number {
+            return this._thumbWidth.getValueInPixel(this._host, this._cachedParentMeasure.width);
+        }
+
+        public set thumbWidth(value: string | number) {
             if (this._thumbWidth.toString(this._host) === value) {
                 return;
             }
@@ -66,7 +73,7 @@ module BABYLON.GUI {
             if (this._thumbWidth.fromString(value)) {
                 this._markAsDirty();
             }
-        }              
+        }
 
         public get minimum(): number {
             return this._minimum;
@@ -81,7 +88,7 @@ module BABYLON.GUI {
             this._markAsDirty();
 
             this.value = Math.max(Math.min(this.value, this._maximum), this._minimum);
-        }         
+        }
 
         public get maximum(): number {
             return this._maximum;
@@ -96,7 +103,7 @@ module BABYLON.GUI {
             this._markAsDirty();
 
             this.value = Math.max(Math.min(this.value, this._maximum), this._minimum);
-        }     
+        }
 
         public get value(): number {
             return this._value;
@@ -112,7 +119,20 @@ module BABYLON.GUI {
             this._markAsDirty();
 
             this.onValueChangedObservable.notifyObservers(this._value);
-        }                             
+        }
+
+        public get isThumbCircle(): boolean {
+            return this._isThumbCircle;
+        }
+
+        public set isThumbCircle(value: boolean) {
+            if (this._isThumbCircle === value) {
+                return;
+            }
+
+            this._isThumbCircle = value;
+            this._markAsDirty();
+        }
 
         constructor(public name?: string) {
             super(name);
@@ -122,7 +142,7 @@ module BABYLON.GUI {
 
         protected _getTypeName(): string {
             return "Slider";
-        }              
+        }
 
         public _draw(parentMeasure: Measure, context: CanvasRenderingContext2D): void {
             context.save();
@@ -133,17 +153,24 @@ module BABYLON.GUI {
                 var effectiveThumbWidth;
                 var effectiveBarOffset;
 
+                if (this.shadowBlur || this.shadowOffsetX || this.shadowOffsetY) {
+                    context.shadowColor = this.shadowColor;
+                    context.shadowBlur = this.shadowBlur;
+                    context.shadowOffsetX = this.shadowOffsetX;
+                    context.shadowOffsetY = this.shadowOffsetY;
+                }
+
                 if (this._thumbWidth.isPixel) {
-                    effectiveThumbWidth = Math.min(this._thumbWidth.getValue(this._host), this._currentMeasure.height);
+                    effectiveThumbWidth = Math.min(this._thumbWidth.getValue(this._host), this._currentMeasure.width);
                 } else {
-                    effectiveThumbWidth = this._currentMeasure.height * this._thumbWidth.getValue(this._host); 
+                    effectiveThumbWidth = this._currentMeasure.width * this._thumbWidth.getValue(this._host);
                 }
 
                 if (this._barOffset.isPixel) {
                     effectiveBarOffset = Math.min(this._barOffset.getValue(this._host), this._currentMeasure.height);
                 } else {
-                    effectiveBarOffset = this._currentMeasure.height * this._barOffset.getValue(this._host); 
-                }                
+                    effectiveBarOffset = this._currentMeasure.height * this._barOffset.getValue(this._host);
+                }
 
 
                 var left = this._currentMeasure.left + effectiveThumbWidth / 2;
@@ -154,14 +181,49 @@ module BABYLON.GUI {
                 context.fillStyle = this._background;
                 context.fillRect(left, this._currentMeasure.top + effectiveBarOffset, width, this._currentMeasure.height - effectiveBarOffset * 2);
 
+                if (this.shadowBlur || this.shadowOffsetX || this.shadowOffsetY) {
+                    context.shadowBlur = 0;
+                    context.shadowOffsetX = 0;
+                    context.shadowOffsetY = 0;
+                }
+
                 context.fillStyle = this.color;
                 context.fillRect(left, this._currentMeasure.top + effectiveBarOffset, thumbPosition, this._currentMeasure.height - effectiveBarOffset * 2);
 
-                // Thumb
-                context.fillRect(left + thumbPosition - effectiveThumbWidth / 2, this._currentMeasure.top, effectiveThumbWidth, this._currentMeasure.height);
+                if (this.shadowBlur || this.shadowOffsetX || this.shadowOffsetY) {
+                    context.shadowColor = this.shadowColor;
+                    context.shadowBlur = this.shadowBlur;
+                    context.shadowOffsetX = this.shadowOffsetX;
+                    context.shadowOffsetY = this.shadowOffsetY;
+                }
 
-                context.strokeStyle = this._borderColor;
-                context.strokeRect(left + thumbPosition - effectiveThumbWidth / 2, this._currentMeasure.top, effectiveThumbWidth, this._currentMeasure.height);
+                // Thumb
+                if (this._isThumbCircle) {
+                    context.beginPath();
+                    context.arc(left + thumbPosition, this._currentMeasure.top + this._currentMeasure.height / 2, effectiveThumbWidth / 2, 0, 2 * Math.PI);
+                    context.fill();
+
+                    if (this.shadowBlur || this.shadowOffsetX || this.shadowOffsetY) {
+                        context.shadowBlur = 0;
+                        context.shadowOffsetX = 0;
+                        context.shadowOffsetY = 0;
+                    }
+
+                    context.strokeStyle = this._borderColor;
+                    context.stroke();
+                }
+                else {
+                    context.fillRect(left + thumbPosition - effectiveThumbWidth / 2, this._currentMeasure.top, effectiveThumbWidth, this._currentMeasure.height);
+
+                    if (this.shadowBlur || this.shadowOffsetX || this.shadowOffsetY) {
+                        context.shadowBlur = 0;
+                        context.shadowOffsetX = 0;
+                        context.shadowOffsetY = 0;
+                    }
+
+                    context.strokeStyle = this._borderColor;
+                    context.strokeRect(left + thumbPosition - effectiveThumbWidth / 2, this._currentMeasure.top, effectiveThumbWidth, this._currentMeasure.height);
+                }
             }
             context.restore();
         }
@@ -169,34 +231,40 @@ module BABYLON.GUI {
         // Events
         private _pointerIsDown = false;
 
-        private _updateValueFromPointer(x: number): void {
+        private _updateValueFromPointer(x: number, y: number): void {
+            if (this.rotation != 0) {
+                this._invertTransformMatrix.transformCoordinates(x, y, this._transformedPosition);
+                x = this._transformedPosition.x;
+            }
             this.value = this._minimum + ((x - this._currentMeasure.left) / this._currentMeasure.width) * (this._maximum - this._minimum);
         }
 
-        protected _onPointerDown(coordinates: Vector2): boolean {
-            if (!super._onPointerDown(coordinates)) {
+        public _onPointerDown(target: Control, coordinates: Vector2, buttonIndex: number): boolean {
+            if (!super._onPointerDown(target, coordinates, buttonIndex)) {
                 return false;
             }
 
             this._pointerIsDown = true;
 
-            this._updateValueFromPointer(coordinates.x);
+            this._updateValueFromPointer(coordinates.x, coordinates.y);
             this._host._capturingControl = this;
 
             return true;
         }
 
-        protected _onPointerMove(coordinates: Vector2): void {
+        public _onPointerMove(target: Control, coordinates: Vector2): void {
             if (this._pointerIsDown) {
-                this._updateValueFromPointer(coordinates.x);
+                this._updateValueFromPointer(coordinates.x, coordinates.y);
             }
+
+            super._onPointerMove(target, coordinates);
         }
 
-        protected _onPointerUp (coordinates: Vector2): void {
+        public _onPointerUp(target: Control, coordinates: Vector2, buttonIndex: number): void {
             this._pointerIsDown = false;
-            
+
             this._host._capturingControl = null;
-            super._onPointerUp(coordinates);
-        }         
-    }    
+            super._onPointerUp(target, coordinates, buttonIndex);
+        }
+    }
 }
