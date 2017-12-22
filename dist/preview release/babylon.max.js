@@ -39254,6 +39254,7 @@ var BABYLON;
             var pointA = null;
             var pointB = null;
             var previousPinchSquaredDistance = 0;
+            var previousPinchDistance = 0;
             var initialDistance = 0;
             var twoFingerActivityCount = 0;
             var previousMultiTouchPanPosition = { x: 0, y: 0, isPaning: false, isPinching: false };
@@ -39269,8 +39270,8 @@ var BABYLON;
                 var srcElement = (evt.srcElement || evt.target);
                 if (p.type === BABYLON.PointerEventTypes.POINTERDOWN && srcElement) {
                     if (_this.getSizeOfPoints() === 0) {
-                        window.addEventListener('touchend', _this.onTouchUp);
-                        window.addEventListener('pointerup', _this.onPointerUp);
+                        window.addEventListener('touchend', _this.onTouchUp, true);
+                        window.addEventListener('pointerup', _this.onPointerUp, true);
                     }
                     var id = evt.pointerId || evt.identifier;
                     if (id) {
@@ -39315,6 +39316,9 @@ var BABYLON;
                     initialDistance = 0;
                     if (!isTouch) {
                         pointB = null; // Mouse and pen are mono pointer
+                    }
+                    if (_this.getSizeOfPoints() <= 1) {
+                        previousPinchDistance = 0;
                     }
                     //would be better to use pointers.remove(evt.pointerId) for multitouch gestures, 
                     //but emptying completly pointers collection is required to fix a bug on iPhone : 
@@ -39392,13 +39396,24 @@ var BABYLON;
                             var distX = pointA.x - pointB.x;
                             var distY = pointA.y - pointB.y;
                             var pinchSquaredDistance = (distX * distX) + (distY * distY);
+                            var pinchDistance = Math.sqrt(pinchSquaredDistance);
+                            // 记录当前两根手指按下的值
                             if (previousPinchDistance === 0) {
                                 previousPinchDistance = pinchSquaredDistance;
                                 return;
                             }
+                            /*
+                            // 计算缩放因子
+                            var scale = pinchDistance / previousPinchDistance;
+                            var deltaRadius = (scale - 1) * previousCameraRadius;
+                            // 通过deltaRadius计算inertialRadiusOffset
+                            var inertia = this.camera.inertia;
+                            var inertialRadiusOffset = (this.camera.radius - previousCameraRadius) * (1 - inertia) / (1 - Math.pow(inertia, 100));
+                            this.camera.inertialRadiusOffset = inertialRadiusOffset;
+                            */
                             if (pinchSquaredDistance !== previousPinchDistance) {
                                 _this.camera
-                                    .inertialRadiusOffset += (pinchSquaredDistance - previousPinchDistance) /
+                                    .inertialRadiusOffset += 0.1 * (pinchSquaredDistance - previousPinchDistance) /
                                     (_this.pinchPrecision *
                                         ((_this.angularSensibilityX + _this.angularSensibilityY) / 2) *
                                         direction);
@@ -39408,8 +39423,6 @@ var BABYLON;
                         else {
                             pointA = { x: evt.clientX, y: evt.clientY, pointerId: evt.pointerId, type: evt.pointerType };
                             pointB = undefined;
-                        }
-                        {
                             twoFingerActivityCount++;
                             if (previousMultiTouchPanPosition.isPinching || (twoFingerActivityCount < 20 && Math.abs(pinchDistance - initialDistance) > _this.camera.pinchToPanMaxDistance)) {
                                 if (_this.pinchDeltaPercentage) {
