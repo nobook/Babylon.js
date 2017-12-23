@@ -39255,6 +39255,7 @@ var BABYLON;
             var pointB = null;
             var previousPinchSquaredDistance = 0;
             var previousPinchDistance = 0;
+            var previousCameraRadius = 0;
             var initialDistance = 0;
             var twoFingerActivityCount = 0;
             var previousMultiTouchPanPosition = { x: 0, y: 0, isPaning: false, isPinching: false };
@@ -39319,6 +39320,7 @@ var BABYLON;
                     }
                     if (_this.getSizeOfPoints() <= 1) {
                         previousPinchDistance = 0;
+                        previousCameraRadius = 0;
                     }
                     //would be better to use pointers.remove(evt.pointerId) for multitouch gestures, 
                     //but emptying completly pointers collection is required to fix a bug on iPhone : 
@@ -39400,25 +39402,14 @@ var BABYLON;
                             // 记录当前两根手指按下的值
                             if (previousPinchDistance === 0) {
                                 previousPinchDistance = pinchSquaredDistance;
+                                previousCameraRadius = _this.camera.radius;
+                                _this.camera.targetRadius = previousCameraRadius;
                                 return;
                             }
-                            /*
                             // 计算缩放因子
-                            var scale = pinchDistance / previousPinchDistance;
-                            var deltaRadius = (scale - 1) * previousCameraRadius;
-                            // 通过deltaRadius计算inertialRadiusOffset
-                            var inertia = this.camera.inertia;
-                            var inertialRadiusOffset = (this.camera.radius - previousCameraRadius) * (1 - inertia) / (1 - Math.pow(inertia, 100));
-                            this.camera.inertialRadiusOffset = inertialRadiusOffset;
-                            */
-                            if (pinchSquaredDistance !== previousPinchDistance) {
-                                _this.camera
-                                    .inertialRadiusOffset += 0.1 * (pinchSquaredDistance - previousPinchDistance) /
-                                    (_this.pinchPrecision *
-                                        ((_this.angularSensibilityX + _this.angularSensibilityY) / 2) *
-                                        direction);
-                                previousPinchDistance = pinchSquaredDistance;
-                            }
+                            var scale = pinchSquaredDistance / previousPinchDistance;
+                            _this.camera.targetRadius /= scale;
+                            previousPinchDistance = pinchSquaredDistance;
                         }
                         else {
                             pointA = { x: evt.clientX, y: evt.clientY, pointerId: evt.pointerId, type: evt.pointerType };
