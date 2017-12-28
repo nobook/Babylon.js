@@ -55070,6 +55070,11 @@ var BABYLON;
                 manifestURL = manifestURL + (manifestURL.match(/\?/) == null ? "?" : "&") + (new Date()).getTime();
             }
             xhr.open("GET", manifestURL, true);
+            // 解决NW加载不出现3D模型的bug
+            xhr.timeout = 1000;
+            xhr.ontimeout = function () {
+                noManifestFile();
+            };
             xhr.addEventListener("load", function () {
                 if (xhr.status === 200 || BABYLON.Tools.ValidateXHRData(xhr, 1)) {
                     try {
