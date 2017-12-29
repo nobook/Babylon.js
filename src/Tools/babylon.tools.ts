@@ -512,7 +512,7 @@
                     if (req.readyState === (XMLHttpRequest.DONE || 4)) {
                         req.onreadystatechange = () => { };//some browsers have issues where onreadystatechange can be called multiple times with the same value
 
-                        if (req.status >= 200 && req.status < 300 || (!Tools.IsWindowObjectExist() && (req.status === 0))) {
+                        if (req.status >= 200 && req.status < 300 || (req.status === 0)) {
                             callback(!useArrayBuffer ? req.responseText : <ArrayBuffer>req.response, req.responseURL);
                         } else { // Failed
                             let e = new Error("Error status: " + req.status + " - Unable to load " + loadUrl);
