@@ -6200,7 +6200,7 @@ var BABYLON;
                     // In case of undefined state in some browsers.
                     if (req.readyState === (XMLHttpRequest.DONE || 4)) {
                         req.onreadystatechange = function () { }; //some browsers have issues where onreadystatechange can be called multiple times with the same value
-                        if (req.status >= 200 && req.status < 300 || (!Tools.IsWindowObjectExist() && (req.status === 0))) {
+                        if (req.status >= 200 && req.status < 300 || (req.status === 0)) {
                             callback(!useArrayBuffer ? req.responseText : req.response, req.responseURL);
                         }
                         else {
