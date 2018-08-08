@@ -39408,7 +39408,7 @@ var BABYLON;
                             }
                             // 计算缩放因子
                             var scale = pinchSquaredDistance / previousPinchDistance;
-                            _this.camera.targetRadius /= scale;
+                            _this.camera.targetRadius = (_this.camera.targetRadius || _this.camera.radius) / scale;
                             previousPinchDistance = pinchSquaredDistance;
                         }
                         else {
